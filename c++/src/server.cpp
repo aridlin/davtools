@@ -24,7 +24,7 @@ using tcp = asio::ip::tcp;
 static constexpr std::string_view kTop = "/convert";
 
 // Add new converter names here when you add files to the registry.
-static const std::array<std::string_view, 8> kConverters = {
+static const std::array<std::string_view, 9> kConverters = {
     "png-jpg",
     "invert",
     "img-gif",
@@ -33,6 +33,7 @@ static const std::array<std::string_view, 8> kConverters = {
     "virustest",
     "sha256",
     "base64"
+    ,"json-min"
 };
 
 struct ParsedConvertPath {
