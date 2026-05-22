@@ -13,7 +13,7 @@ SERVER_PID=$!
 cleanup() {
     echo "Cleaning up..."
     kill $SERVER_PID || true
-    rm -f clean.txt clean.png tiny.png tiny.jpg invert.png img.gif test.pdf pdf.png test.mp4 mp4.gif base64.txt base64.txt.b64.txt server_test.log
+    rm -f clean.txt clean.png tiny.png tiny.jpg invert.png img.gif test.pdf pdf.png test.mp4 mp4.gif base64.txt base64.txt.b64.txt test.json test.min.json empty_trigger.json empty_trigger.min.json server_test.log
 }
 trap cleanup EXIT
 
@@ -37,6 +37,28 @@ echo "abc" > base64.txt
 curl -s -T base64.txt http://127.0.0.1:8081/convert/base64/in/base64.txt
 curl -s http://127.0.0.1:8081/convert/base64/out/base64.txt.b64.txt --output base64.txt.b64.txt
 check_file base64.txt.b64.txt
+
+echo "Testing json-min..."
+printf '{\n  "hello": "world",\n  "array": [1, 2, 3]\n}' > test.json
+curl -s -T test.json http://127.0.0.1:8081/convert/json-min/in/test.json
+curl -s http://127.0.0.1:8081/convert/json-min/out/test.min.json --output test.min.json
+check_file test.min.json
+if ! grep -Fq '{"hello":"world","array":[1,2,3]}' test.min.json; then
+    echo "FAILED: json-min did not minify correctly"
+    cat test.min.json
+    exit 1
+fi
+echo "SUCCESS: json-min worked"
+
+echo "Testing json-min empty trigger..."
+echo -n " " > empty_trigger.json
+curl -s -T empty_trigger.json http://127.0.0.1:8081/convert/json-min/in/empty_trigger.json
+curl -s http://127.0.0.1:8081/convert/json-min/out/empty_trigger.min.json --output empty_trigger.min.json
+check_file empty_trigger.min.json
+if ! grep -Fq '' empty_trigger.min.json; then
+    echo "FAILED: json-min empty trigger failed"
+    exit 1
+fi
 
 echo "Testing virustest..."
 echo "This is a clean test file" > clean.txt
