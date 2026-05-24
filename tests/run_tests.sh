@@ -13,7 +13,7 @@ SERVER_PID=$!
 cleanup() {
     echo "Cleaning up..."
     kill $SERVER_PID || true
-    rm -f clean.txt clean.png tiny.png tiny.jpg invert.png img.gif test.pdf pdf.png test.mp4 mp4.gif base64.txt base64.txt.b64.txt server_test.log
+    rm -f clean.txt clean.png tiny.png tiny.jpg invert.png img.gif test.pdf pdf.png test.mp4 mp4.gif base64.txt base64.txt.b64.txt test_json.json test_json.min.json server_test.log
 }
 trap cleanup EXIT
 
@@ -31,6 +31,18 @@ check_file() {
 
 echo "Testing root endpoint..."
 curl -s http://127.0.0.1:8081/ | grep "convertdav"
+
+echo "Testing json-min..."
+printf '{ \n  "key" : "value" \t }' > test_json.json
+curl -s -T test_json.json http://127.0.0.1:8081/convert/json-min/in/test_json.json
+curl -s http://127.0.0.1:8081/convert/json-min/out/test_json.min.json --output test_json.min.json
+check_file test_json.min.json
+# Verification
+if [ "$(cat test_json.min.json)" = '{"key":"value"}' ]; then
+    echo "SUCCESS: json-min content matches"
+else
+    echo "FAILED: json-min content mismatch: $(cat test_json.min.json)"
+fi
 
 echo "Testing base64..."
 echo "abc" > base64.txt
