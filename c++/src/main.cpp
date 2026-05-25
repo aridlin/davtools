@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#ifndef DAVTOOLS_FTUI_GUI
 int main(int argc, char** argv) {
     try {
         const std::string bind_ip = (argc > 1) ? argv[1] : "0.0.0.0";
@@ -29,3 +30,4 @@ int main(int argc, char** argv) {
         return 1;
     }
 }
+#endif

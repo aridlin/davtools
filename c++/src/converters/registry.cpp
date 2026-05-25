@@ -16,8 +16,10 @@ std::vector<OutputArtifact> convert_img_gif(const std::string&, const std::vecto
 std::vector<OutputArtifact> convert_pdf_png(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_mp4_gif(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_virustest(const std::string&, const std::vector<std::uint8_t>&);
+std::vector<OutputArtifact> convert_md5(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_sha256(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_base64(const std::string&, const std::vector<std::uint8_t>&);
+std::vector<OutputArtifact> convert_json_min(const std::string&, const std::vector<std::uint8_t>&);
 
 namespace {
 
@@ -110,8 +112,10 @@ void init_registry_once_locked() {
     g_registry.emplace("pdf-png", Entry{convert_pdf_png, true, {}});
     g_registry.emplace("mp4-gif", Entry{convert_mp4_gif, true, {}});
     g_registry.emplace("virustest", Entry{convert_virustest, true, {}});
+    g_registry.emplace("md5", Entry{convert_md5, true, {}});
     g_registry.emplace("sha256", Entry{convert_sha256, true, {}});
     g_registry.emplace("base64", Entry{convert_base64, true, {}});
+    g_registry.emplace("json-min", Entry{convert_json_min, true, {}});
 
     // optional aliases
     g_registry.emplace("img_gif", Entry{convert_img_gif, true, {}});
@@ -156,6 +160,12 @@ void test_one(const std::string& op, bool disable_broken) {
         } else if (op == "virustest") {
             auto out = g_registry.at(op).fn("selftest.txt", {'t', 'e', 's', 't'});
             if (out.empty()) throw std::runtime_error("empty output");
+        } else if (op == "md5") {
+            auto out = g_registry.at(op).fn("selftest.txt", {'a', 'b', 'c'});
+            if (out.empty() || out[0].data.empty()) throw std::runtime_error("empty output");
+            if (out[0].data.find("900150983cd24fb0d6963f7d28e17f72") != 0) {
+                throw std::runtime_error("md5 hash mismatch");
+            }
         } else if (op == "sha256") {
             auto out = g_registry.at(op).fn("selftest.txt", {'a', 'b', 'c'});
             if (out.empty() || out[0].data.empty()) throw std::runtime_error("empty output");
@@ -170,6 +180,14 @@ void test_one(const std::string& op, bool disable_broken) {
             if (out[0].data.find("YWJj\n") != 0) {
                 throw std::runtime_error("base64 hash mismatch");
             }
+        } else if (op == "json-min") {
+            const char* in = "{ \n  \"key\" : \"value with spaces\" \t }";
+            std::vector<std::uint8_t> input(in, in + std::strlen(in));
+            auto out = g_registry.at(op).fn("selftest.json", input);
+            if (out.empty() || out[0].data.empty()) throw std::runtime_error("empty output");
+            if (out[0].data != "{\"key\":\"value with spaces\"}") {
+                throw std::runtime_error("json-min mismatch");
+            }
         }
     } catch (const std::exception& e) {
         if (disable_broken) {
@@ -179,7 +197,7 @@ void test_one(const std::string& op, bool disable_broken) {
 }
 
 std::vector<std::string> canonical_ops_for_testing() {
-    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "sha256", "base64"};
+    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "json-min"};
 }
 
 } // namespace

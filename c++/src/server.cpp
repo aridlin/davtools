@@ -9,6 +9,7 @@
 #include <cctype>
 #include <ctime>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -23,16 +24,26 @@ using tcp = asio::ip::tcp;
 
 static constexpr std::string_view kTop = "/convert";
 
+static void emit_log(const ServerLogCallback& log, std::string message) {
+    if (log) {
+        log(std::move(message));
+    } else {
+        std::cout << message << "\n";
+    }
+}
+
 // Add new converter names here when you add files to the registry.
-static const std::array<std::string_view, 8> kConverters = {
+static const std::array<std::string_view, 10> kConverters = {
     "png-jpg",
     "invert",
     "img-gif",
     "pdf-png",
     "mp4-gif",
     "virustest",
+    "md5",
     "sha256",
-    "base64"
+    "base64",
+    "json-min"
 };
 
 struct ParsedConvertPath {
@@ -410,18 +421,13 @@ make_proppatch_response(std::string_view href)
 static http::response<http::string_body>
 handle_request(AppState& app,
                const std::string& client_ip,
+               const ServerLogCallback& log,
                const http::request<http::vector_body<std::uint8_t>>& req)
 {
     const std::string target = std::string(req.target());
     const std::string method = std::string(req.method_string());
 
-    std::cout << "\n=== REQUEST [" << client_ip << "] ===\n";
-    std::cout << method << " " << target << " HTTP/"
-              << (req.version() / 10) << "." << (req.version() % 10) << "\n";
-    for (auto const& h : req) {
-        std::cout << h.name_string() << ": " << h.value() << "\n";
-    }
-    std::cout << "=======================\n" << std::flush;
+    emit_log(log, "[" + client_ip + "] " + method + " " + target);
 
     if (method == "OPTIONS") {
         auto res = make_response(http::status::ok, "");
@@ -617,6 +623,7 @@ handle_request(AppState& app,
         try {
             outputs = run_converter(parsed->op, parsed->name, req.body());
         } catch (const std::exception& e) {
+            emit_log(log, "conversion failed for " + parsed->op + "/" + parsed->name + ": " + e.what());
             return make_response(
                 http::status::unsupported_media_type,
                 std::string("Conversion failed: ") + e.what() + "\n"
@@ -748,7 +755,10 @@ handle_request(AppState& app,
     return make_response(http::status::method_not_allowed, "Method not supported yet\n");
 }
 
-static void do_session(tcp::socket socket, AppState& app, std::string client_ip) {
+static void do_session(tcp::socket socket,
+                       std::shared_ptr<AppState> app,
+                       std::string client_ip,
+                       ServerLogCallback log) {
     beast::error_code ec;
     beast::flat_buffer buffer;
 
@@ -763,7 +773,7 @@ static void do_session(tcp::socket socket, AppState& app, std::string client_ip)
         if (ec == http::error::end_of_stream) break;
         if (ec) return;
 
-        auto res = handle_request(app, client_ip, req);
+        auto res = handle_request(*app, client_ip, log, req);
 
         res.keep_alive(req.keep_alive());
         http::write(socket, res, ec);
@@ -778,24 +788,31 @@ static void do_session(tcp::socket socket, AppState& app, std::string client_ip)
     socket.shutdown(tcp::socket::shutdown_send, ec);
 }
 
-void run_server(const std::string& bind_ip, unsigned short port) {
+void run_server(const std::string& bind_ip,
+                unsigned short port,
+                std::stop_token stop_token,
+                ServerLogCallback log) {
     const auto address = asio::ip::make_address(bind_ip);
 
     asio::io_context ioc{1};
     tcp::acceptor acceptor{ioc, {address, port}};
 
-    AppState app;
+    auto app = std::make_shared<AppState>();
 
-    std::jthread gc([&app](std::stop_token st) {
+    std::jthread gc([app](std::stop_token st) {
         using namespace std::chrono_literals;
         constexpr auto TTL = 10min;
 
         while (!st.stop_requested()) {
-            std::this_thread::sleep_for(30s);
-            std::scoped_lock lock(app.mtx);
+            for (int i = 0; i < 300 && !st.stop_requested(); ++i) {
+                std::this_thread::sleep_for(100ms);
+            }
+            if (st.stop_requested()) break;
+
+            std::scoped_lock lock(app->mtx);
             auto now = std::chrono::steady_clock::now();
 
-            for (auto user_it = app.users.begin(); user_it != app.users.end(); ) {
+            for (auto user_it = app->users.begin(); user_it != app->users.end(); ) {
                 auto& uc = user_it->second;
 
                 for (auto it = uc.in_files.begin(); it != uc.in_files.end(); ) {
@@ -809,28 +826,51 @@ void run_server(const std::string& bind_ip, unsigned short port) {
                 }
 
                 // Drop empty user caches too
-                if (uc.in_files.empty() && uc.out_files.empty()) user_it = app.users.erase(user_it);
+                if (uc.in_files.empty() && uc.out_files.empty()) user_it = app->users.erase(user_it);
                 else ++user_it;
             }
         }
     });
 
-    std::cout << "Listening on http://" << address.to_string() << ":" << port << "\n";
-    std::cout << "WebDAV base examples:\n";
+    std::jthread stop_watcher([&acceptor, stop_token](std::stop_token local_stop) {
+        using namespace std::chrono_literals;
+        while (!local_stop.stop_requested() && !stop_token.stop_requested()) {
+            std::this_thread::sleep_for(100ms);
+        }
+
+        beast::error_code ec;
+        acceptor.cancel(ec);
+        acceptor.close(ec);
+    });
+
+    emit_log(log, "Listening on http://" + address.to_string() + ":" + std::to_string(port));
+    emit_log(log, "WebDAV base examples:");
     for (auto op : kConverters) {
-        std::cout << "  /convert/" << op << "/\n";
+        emit_log(log, "  /convert/" + std::string(op) + "/");
     }
 
-    for (;;) {
+    while (!stop_token.stop_requested()) {
         tcp::socket socket{ioc};
-        acceptor.accept(socket);
+        beast::error_code accept_ec;
+        acceptor.accept(socket, accept_ec);
+        if (accept_ec) {
+            if (stop_token.stop_requested() ||
+                accept_ec == asio::error::operation_aborted ||
+                accept_ec == asio::error::bad_descriptor) {
+                break;
+            }
+            emit_log(log, "accept failed: " + accept_ec.message());
+            continue;
+        }
 
         beast::error_code ec;
         auto ep = socket.remote_endpoint(ec);
         std::string client_ip = ec ? std::string("unknown") : ep.address().to_string();
 
-        std::thread([s = std::move(socket), &app, client_ip = std::move(client_ip)]() mutable {
-            do_session(std::move(s), app, std::move(client_ip));
+        std::thread([s = std::move(socket), app, client_ip = std::move(client_ip), log]() mutable {
+            do_session(std::move(s), app, std::move(client_ip), log);
         }).detach();
     }
+
+    emit_log(log, "Server stopped");
 }

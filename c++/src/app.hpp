@@ -2,7 +2,9 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -40,4 +42,11 @@ std::vector<OutputArtifact> run_converter(
 );
 
 // Server entrypoint
-void run_server(const std::string& bind_ip, unsigned short port);
+using ServerLogCallback = std::function<void(std::string)>;
+
+void run_server(
+    const std::string& bind_ip,
+    unsigned short port,
+    std::stop_token stop_token = {},
+    ServerLogCallback log = {}
+);

@@ -1,4 +1,8 @@
 build/
+build*/
+c++/build*/
+c++/dist-windows/
+c++/dist-linux/
 *.png
 *.jpg
 *.gif

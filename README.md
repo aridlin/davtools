@@ -253,6 +253,39 @@ Custom bind IP / port:
 ./build/convertdav 0.0.0.0 8080
 ```
 
+### Windows build
+
+From PowerShell:
+
+```powershell
+cd c++
+.\scripts\build-windows.ps1
+```
+
+This builds:
+
+```text
+c++/build-windows/convertdav.exe
+c++/build-windows/convertdav-panel.exe
+c++/build-windows/convertdav-ftht-panel.exe
+```
+
+`convertdav.exe` is the CLI server. `convertdav-panel.exe` is the native FTUI control panel with bind IP, port, Start, Stop, Explorer path copy, and live server log controls.
+
+`convertdav-ftht-panel.exe` is the FTHt browser control panel. It listens on `http://127.0.0.1:8079/` by default and controls the davtools server separately on the bind IP and port shown in the panel. Pass a different panel port as the first argument if needed:
+
+```powershell
+.\dist-windows\convertdav-ftht-panel.exe 8088
+```
+
+The script uses the MSYS2 UCRT toolchain by default:
+
+```text
+C:/msys64/ucrt64/bin/g++.exe
+```
+
+It also copies the needed MinGW/OpenSSL runtime DLLs next to the executables.
+
 ---
 
 ## Startup self-tests and auto-disable behavior
