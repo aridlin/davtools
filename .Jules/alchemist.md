@@ -1,3 +1,6 @@
+## 2024-06-07 - Base64 Decoding with OpenSSL EVP_DecodeUpdate
+**Learning:** EVP_DecodeUpdate and EVP_DecodeFinal are superior to EVP_DecodeBlock for robust Base64 decoding, as the streaming API correctly processes newlines and ignores trailing whitespace characters.
+**Action:** Always prefer EVP_DecodeUpdate and EVP_DecodeFinal for base64 decoding when the input may be formatted with newlines.
 ## 2024-05-18 - SHA256 checksum generator using OpenSSL EVP
 **Learning:** Reusing existing OpenSSL dependencies (`OpenSSL::Crypto`) using `EVP_MD_CTX` API is far superior compared to raw legacy functions like `SHA256_Init`/`SHA256_Update`/`SHA256_Final` since the legacy functions have been deprecated in OpenSSL 3.0. The EVP API is robust, requires careful memory management (`EVP_MD_CTX_new` and `EVP_MD_CTX_free`), and cleanly integrates with our existing `std::vector<uint8_t>` pipeline without adding large new dependencies.
 **Action:** Always prefer the `EVP` API when handling checksums and cryptographic hashes using OpenSSL to ensure compatibility with modern OpenSSL versions (3.0+) and explicitly handle context allocation and deallocation to prevent memory leaks in long-running services like convertdav.
