@@ -18,7 +18,7 @@ cleanup() {
     fi
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
-    rm -f test_json.json test_json.min.json server_test.log
+    rm -f test_json.json test_json.min.json test.csv test.json server_test.log
 }
 trap cleanup EXIT
 
@@ -161,6 +161,16 @@ if put_file test_json.json http://127.0.0.1:8081/convert/json-min/in/test_json.j
     check_content test_json.min.json '{"key":"value with spaces"}'
 else
     fail "json-min conversion request"
+fi
+
+echo "Testing csv-json..."
+printf 'name,age\nAlice,30\nBob,25' > test.csv
+if put_file test.csv http://127.0.0.1:8081/convert/csv-json/in/test.csv &&
+   get_file http://127.0.0.1:8081/convert/csv-json/out/test.json test.json; then
+    check_file test.json
+    check_content test.json '[{"name":"Alice","age":"30"},{"name":"Bob","age":"25"}]'
+else
+    fail "csv-json conversion request"
 fi
 
 MAGICK=$(magick_cmd)
