@@ -133,6 +133,16 @@ else
     fail "base64 conversion request"
 fi
 
+echo "Testing base64-dec..."
+printf "YWJj" > base64_dec.b64
+if put_file base64_dec.b64 http://127.0.0.1:8081/convert/base64-dec/in/base64_dec.b64 &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/base64_dec base64_dec; then
+    check_file base64_dec
+    check_content base64_dec "abc"
+else
+    fail "base64-dec conversion request"
+fi
+
 echo "Testing sha256..."
 printf "abc" > sha256.txt
 if put_file sha256.txt http://127.0.0.1:8081/convert/sha256/in/sha256.txt &&
