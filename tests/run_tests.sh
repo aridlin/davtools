@@ -18,7 +18,7 @@ cleanup() {
     fi
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
-    rm -f test_json.json test_json.min.json server_test.log
+    rm -f test_json.json test_json.min.json test_csv.csv test_csv.json empty_csv.csv empty_csv.json server_test.log
 }
 trap cleanup EXIT
 
@@ -151,6 +151,26 @@ if put_file md5.txt http://127.0.0.1:8081/convert/md5/in/md5.txt &&
     check_content md5.txt.md5.txt "900150983cd24fb0d6963f7d28e17f72"
 else
     fail "md5 conversion request"
+fi
+
+
+echo "Testing csv-json..."
+printf "a,b\n1,2\n" > test_csv.csv
+if put_file test_csv.csv http://127.0.0.1:8081/convert/csv-json/in/test_csv.csv &&
+   get_file http://127.0.0.1:8081/convert/csv-json/out/test_csv.json test_csv.json; then
+    check_file test_csv.json
+    check_content test_csv.json '[{"a":"1","b":"2"}]'
+else
+    fail "csv-json conversion request"
+fi
+
+echo "Testing empty csv-json..."
+printf " " > empty_csv.csv
+if put_file empty_csv.csv http://127.0.0.1:8081/convert/csv-json/in/empty_csv.csv &&
+   get_file http://127.0.0.1:8081/convert/csv-json/out/empty_csv.json empty_csv.json; then
+    check_file empty_csv.json
+else
+    fail "empty csv-json conversion request"
 fi
 
 echo "Testing json-min..."
