@@ -18,6 +18,7 @@ cleanup() {
     fi
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
+    rm -f base64_dec_test.txt base64_dec_test.dec.bin empty_trigger.txt empty_trigger.dec.bin
     rm -f test_json.json test_json.min.json server_test.log
 }
 trap cleanup EXIT
@@ -131,6 +132,29 @@ if put_file base64.txt http://127.0.0.1:8081/convert/base64/in/base64.txt &&
     check_content base64.txt.b64.txt "YWJj"
 else
     fail "base64 conversion request"
+fi
+
+echo "Testing base64-dec..."
+printf "YWJj\n" > base64_dec_test.txt
+if put_file base64_dec_test.txt http://127.0.0.1:8081/convert/base64-dec/in/base64_dec_test.txt &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/base64_dec_test.dec.bin base64_dec_test.dec.bin; then
+    check_file base64_dec_test.dec.bin
+    check_content base64_dec_test.dec.bin "abc"
+else
+    fail "base64-dec conversion request"
+fi
+
+echo "Testing base64-dec (empty input)..."
+echo -n " " > empty_trigger.txt
+if put_file empty_trigger.txt http://127.0.0.1:8081/convert/base64-dec/in/empty_trigger.txt &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/empty_trigger.dec.bin empty_trigger.dec.bin; then
+    if [ -f "empty_trigger.dec.bin" ] && [ "$(stat -c%s "empty_trigger.dec.bin")" -eq 0 ]; then
+        pass "empty_trigger.dec.bin created (0 bytes)"
+    else
+        fail "empty_trigger.dec.bin not created or not 0 bytes"
+    fi
+else
+    fail "base64-dec empty conversion request"
 fi
 
 echo "Testing sha256..."
