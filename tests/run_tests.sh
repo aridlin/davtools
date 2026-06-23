@@ -19,6 +19,7 @@ cleanup() {
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
     rm -f test_json.json test_json.min.json server_test.log
+    rm -f base64_decode.txt base64_decode.txt.b64_dec.txt base64_decode.bin base64_decode_empty.txt base64_decode_empty.bin
 }
 trap cleanup EXIT
 
@@ -131,6 +132,28 @@ if put_file base64.txt http://127.0.0.1:8081/convert/base64/in/base64.txt &&
     check_content base64.txt.b64.txt "YWJj"
 else
     fail "base64 conversion request"
+fi
+
+echo "Testing base64-decode..."
+printf "YWJj\n" > base64_decode.txt
+if put_file base64_decode.txt http://127.0.0.1:8081/convert/base64-decode/in/base64_decode.txt &&
+   get_file http://127.0.0.1:8081/convert/base64-decode/out/base64_decode.bin base64_decode.bin; then
+    check_file base64_decode.bin
+    check_content base64_decode.bin "abc"
+else
+    fail "base64-decode conversion request"
+fi
+
+printf " " > base64_decode_empty.txt
+if put_file base64_decode_empty.txt http://127.0.0.1:8081/convert/base64-decode/in/base64_decode_empty.txt &&
+   get_file http://127.0.0.1:8081/convert/base64-decode/out/base64_decode_empty.bin base64_decode_empty.bin; then
+    if [ -f base64_decode_empty.bin ] && [ "$(stat -c%s base64_decode_empty.bin)" -eq 0 ]; then
+        pass "base64_decode_empty.bin created (0-byte)"
+    else
+        fail "base64_decode_empty.bin not created or not 0-byte"
+    fi
+else
+    fail "base64-decode empty conversion request"
 fi
 
 echo "Testing sha256..."
