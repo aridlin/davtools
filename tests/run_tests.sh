@@ -163,6 +163,16 @@ else
     fail "json-min conversion request"
 fi
 
+echo "Testing csv-json..."
+printf 'id,name\n1,Alice\n2,"Bob, Jr."\n' > test_csv.csv
+if put_file test_csv.csv http://127.0.0.1:8081/convert/csv-json/in/test_csv.csv &&
+   get_file http://127.0.0.1:8081/convert/csv-json/out/test_csv.json test_csv.json; then
+    check_file test_csv.json
+    check_content test_csv.json $'[\n  {"id":"1","name":"Alice"},\n  {"id":"2","name":"Bob, Jr."}\n]'
+else
+    fail "csv-json conversion request"
+fi
+
 MAGICK=$(magick_cmd)
 if [ -z "$MAGICK" ]; then
     skip "ImageMagick-dependent converters"
