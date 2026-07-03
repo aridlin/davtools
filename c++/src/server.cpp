@@ -33,7 +33,7 @@ static void emit_log(const ServerLogCallback& log, std::string message) {
 }
 
 // Add new converter names here when you add files to the registry.
-static const std::array<std::string_view, 10> kConverters = {
+static const std::array<std::string_view, 11> kConverters = {
     "png-jpg",
     "invert",
     "img-gif",
@@ -43,7 +43,8 @@ static const std::array<std::string_view, 10> kConverters = {
     "md5",
     "sha256",
     "base64",
-    "json-min"
+    "json-min",
+    "base64-dec"
 };
 
 struct ParsedConvertPath {
