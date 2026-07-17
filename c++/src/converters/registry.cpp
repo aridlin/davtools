@@ -19,6 +19,7 @@ std::vector<OutputArtifact> convert_virustest(const std::string&, const std::vec
 std::vector<OutputArtifact> convert_md5(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_sha256(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_base64(const std::string&, const std::vector<std::uint8_t>&);
+std::vector<OutputArtifact> convert_base64_decode(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_json_min(const std::string&, const std::vector<std::uint8_t>&);
 
 namespace {
@@ -115,6 +116,7 @@ void init_registry_once_locked() {
     g_registry.emplace("md5", Entry{convert_md5, true, {}});
     g_registry.emplace("sha256", Entry{convert_sha256, true, {}});
     g_registry.emplace("base64", Entry{convert_base64, true, {}});
+    g_registry.emplace("base64-decode", Entry{convert_base64_decode, true, {}});
     g_registry.emplace("json-min", Entry{convert_json_min, true, {}});
 
     // optional aliases
@@ -180,6 +182,9 @@ void test_one(const std::string& op, bool disable_broken) {
             if (out[0].data.find("YWJj\n") != 0) {
                 throw std::runtime_error("base64 hash mismatch");
             }
+        } else if (op == "base64-decode") {
+            auto out = g_registry.at(op).fn("selftest.b64", {'Y', 'W', 'J', 'j', '\n'});
+            if (out.empty() || out[0].data != "abc") throw std::runtime_error("bad base64 decode");
         } else if (op == "json-min") {
             const char* in = "{ \n  \"key\" : \"value with spaces\" \t }";
             std::vector<std::uint8_t> input(in, in + std::strlen(in));
@@ -197,7 +202,7 @@ void test_one(const std::string& op, bool disable_broken) {
 }
 
 std::vector<std::string> canonical_ops_for_testing() {
-    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "json-min"};
+    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "base64-decode", "json-min"};
 }
 
 } // namespace
