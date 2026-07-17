@@ -18,6 +18,7 @@ cleanup() {
     fi
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
+    rm -f b64_dec.txt b64_dec.dec.bin b64_empty.txt b64_empty.dec.bin
     rm -f test_json.json test_json.min.json server_test.log
 }
 trap cleanup EXIT
@@ -161,6 +162,29 @@ if put_file test_json.json http://127.0.0.1:8081/convert/json-min/in/test_json.j
     check_content test_json.min.json '{"key":"value with spaces"}'
 else
     fail "json-min conversion request"
+fi
+
+echo "Testing base64-dec..."
+printf "YWJj\n" > b64_dec.txt
+if put_file b64_dec.txt http://127.0.0.1:8081/convert/base64-dec/in/b64_dec.txt &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/b64_dec.dec.bin b64_dec.dec.bin; then
+    check_file b64_dec.dec.bin
+    check_content b64_dec.dec.bin "abc"
+else
+    fail "base64-dec conversion request"
+fi
+
+echo "Testing base64-dec (empty edge case via whitespace)..."
+printf " " > b64_empty.txt
+if put_file b64_empty.txt http://127.0.0.1:8081/convert/base64-dec/in/b64_empty.txt &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/b64_empty.dec.bin b64_empty.dec.bin; then
+    if [ -f "b64_empty.dec.bin" ] && [ "$(stat -c%s "b64_empty.dec.bin")" -eq 0 ]; then
+        pass "b64_empty.dec.bin created (0 bytes)"
+    else
+        fail "b64_empty.dec.bin not created or not 0 bytes"
+    fi
+else
+    fail "base64-dec conversion request (empty)"
 fi
 
 MAGICK=$(magick_cmd)
