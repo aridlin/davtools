@@ -17,7 +17,7 @@ cleanup() {
         kill "$SERVER_PID" 2>/dev/null || true
     fi
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
-    rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
+    rm -f base64.txt base64.txt.b64.txt hex.txt hex.txt.hex.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
     rm -f test_json.json test_json.min.json server_test.log
 }
 trap cleanup EXIT
@@ -131,6 +131,16 @@ if put_file base64.txt http://127.0.0.1:8081/convert/base64/in/base64.txt &&
     check_content base64.txt.b64.txt "YWJj"
 else
     fail "base64 conversion request"
+fi
+
+echo "Testing hex..."
+printf "abc" > hex.txt
+if put_file hex.txt http://127.0.0.1:8081/convert/hex/in/hex.txt &&
+   get_file http://127.0.0.1:8081/convert/hex/out/hex.txt.hex.txt hex.txt.hex.txt; then
+    check_file hex.txt.hex.txt
+    check_content hex.txt.hex.txt "616263"
+else
+    fail "hex conversion request"
 fi
 
 echo "Testing sha256..."
