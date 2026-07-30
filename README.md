@@ -54,6 +54,7 @@ This makes it feel like a “network drive of tools” rather than a normal web 
 
 These exist and pass startup self-tests, but are not fully implemented yet:
 
+* **`base64-dec`** — decodes Base64 encoded file/text
 * **`sha256`**
 * **`zip`**
 * **`compile-win`**
