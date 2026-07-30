@@ -45,6 +45,7 @@ set(DAVTOOLS_CORE_SOURCES
     src/converters/sha256.cpp
     src/converters/base64.cpp
     src/converters/json_min.cpp
+    src/converters/csv_json.cpp
 )
 
 add_executable(convertdav
