@@ -44,6 +44,7 @@ set(DAVTOOLS_CORE_SOURCES
     src/converters/md5.cpp
     src/converters/sha256.cpp
     src/converters/base64.cpp
+    src/converters/base64_decode.cpp
     src/converters/json_min.cpp
 )
 
