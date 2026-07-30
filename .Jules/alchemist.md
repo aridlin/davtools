@@ -1,3 +1,7 @@
+## 2024-05-18 - Robust Base64 Decoding using OpenSSL EVP Streaming API
+**Learning:** When decoding Base64 strings that may contain formatting elements like newlines, spaces, or padding, `EVP_DecodeUpdate` combined with `EVP_DecodeFinal` must be used instead of `EVP_DecodeBlock`. `EVP_DecodeBlock` fails entirely on inputs containing newlines, whereas the streaming API processes input chunk-by-chunk and safely ignores whitespace, conforming to standard MIME decoding behavior.
+**Action:** Always use the streaming `EVP_DecodeUpdate`/`EVP_DecodeFinal` API with a properly managed `EVP_ENCODE_CTX` when decoding Base64 to ensure robustness against whitespace and deterministic termination formatting.
+
 ## 2024-05-18 - SHA256 checksum generator using OpenSSL EVP
 **Learning:** Reusing existing OpenSSL dependencies (`OpenSSL::Crypto`) using `EVP_MD_CTX` API is far superior compared to raw legacy functions like `SHA256_Init`/`SHA256_Update`/`SHA256_Final` since the legacy functions have been deprecated in OpenSSL 3.0. The EVP API is robust, requires careful memory management (`EVP_MD_CTX_new` and `EVP_MD_CTX_free`), and cleanly integrates with our existing `std::vector<uint8_t>` pipeline without adding large new dependencies.
 **Action:** Always prefer the `EVP` API when handling checksums and cryptographic hashes using OpenSSL to ensure compatibility with modern OpenSSL versions (3.0+) and explicitly handle context allocation and deallocation to prevent memory leaks in long-running services like convertdav.
