@@ -18,6 +18,7 @@ cleanup() {
     fi
     rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
+    rm -f test_b64.txt.b64 test_b64.txt empty_trigger_b64.txt empty_out_b64.txt
     rm -f test_json.json test_json.min.json server_test.log
 }
 trap cleanup EXIT
@@ -131,6 +132,30 @@ if put_file base64.txt http://127.0.0.1:8081/convert/base64/in/base64.txt &&
     check_content base64.txt.b64.txt "YWJj"
 else
     fail "base64 conversion request"
+fi
+
+echo "Testing base64-dec..."
+printf "YWJj\n" > test_b64.txt.b64
+if put_file test_b64.txt.b64 http://127.0.0.1:8081/convert/base64-dec/in/test_b64.txt.b64 &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/test_b64.txt test_b64.txt; then
+    check_file test_b64.txt
+    check_content test_b64.txt "abc"
+else
+    fail "base64-dec conversion request"
+fi
+
+echo "Testing base64-dec (empty)..."
+echo -n " " > empty_trigger_b64.txt
+if put_file empty_trigger_b64.txt http://127.0.0.1:8081/convert/base64-dec/in/empty_trigger_b64.txt.b64 &&
+   get_file http://127.0.0.1:8081/convert/base64-dec/out/empty_trigger_b64.txt empty_out_b64.txt; then
+    # Since the input was space (which is ignored), the decode output should be strictly 0 bytes.
+    if [ ! -s empty_out_b64.txt ] && [ -f empty_out_b64.txt ]; then
+        pass "base64-dec empty"
+    else
+        fail "base64-dec empty (not 0 bytes)"
+    fi
+else
+    fail "base64-dec empty conversion request"
 fi
 
 echo "Testing sha256..."
