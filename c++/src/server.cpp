@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "web_ui.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
@@ -33,7 +34,7 @@ static void emit_log(const ServerLogCallback& log, std::string message) {
 }
 
 // Add new converter names here when you add files to the registry.
-static const std::array<std::string_view, 10> kConverters = {
+static const std::array<std::string_view, 11> kConverters = {
     "png-jpg",
     "invert",
     "img-gif",
@@ -43,7 +44,8 @@ static const std::array<std::string_view, 10> kConverters = {
     "md5",
     "sha256",
     "base64",
-    "json-min"
+    "json-min",
+    "threshold"
 };
 
 struct ParsedConvertPath {
@@ -71,6 +73,22 @@ static bool is_known_converter(std::string_view op) {
         if (v == op) return true;
     }
     return false;
+}
+
+static std::optional<int> parse_threshold_setting(std::string_view name) {
+    constexpr std::string_view prefix = "value/";
+    if (!starts_with(name, prefix)) return std::nullopt;
+    const std::string raw(name.substr(prefix.size()));
+    if (raw.empty() || !std::all_of(raw.begin(), raw.end(), [](unsigned char c) { return std::isdigit(c); })) {
+        return std::nullopt;
+    }
+    try {
+        const int value = std::stoi(raw);
+        if (value < 1 || value > 100) return std::nullopt;
+        return value;
+    } catch (...) {
+        return std::nullopt;
+    }
 }
 
 static std::string xml_escape(std::string_view in) {
@@ -327,8 +345,38 @@ static std::string dav_multistatus_for_converter_root(std::chrono::system_clock:
     if (include_children) {
         append_dav_collection_response(x, "/convert/" + std::string(op) + "/in/",  "in",  ts);
         append_dav_collection_response(x, "/convert/" + std::string(op) + "/out/", "out", ts);
+        if (op == "threshold") {
+            append_dav_collection_response(x, "/convert/threshold/settings/", "settings", ts);
+        }
     }
 
+    x << "</D:multistatus>";
+    return x.str();
+}
+
+static std::string dav_multistatus_for_threshold_settings(
+    std::chrono::system_clock::time_point ts,
+    bool include_children,
+    std::string_view self_href,
+    std::string_view name,
+    int threshold_percent)
+{
+    std::ostringstream x;
+    x << R"(<?xml version="1.0" encoding="utf-8"?>)"
+      << R"(<D:multistatus xmlns:D="DAV:">)";
+
+    const std::string display_name = name.empty() ? "settings" : std::string(name);
+    append_dav_collection_response(x, self_href, display_name, ts);
+    if (include_children && name.empty()) {
+        append_dav_collection_response(x, "/convert/threshold/settings/value/", "value", ts);
+    } else if (include_children && name == "value") {
+        append_dav_collection_response(
+            x,
+            "/convert/threshold/settings/value/" + std::to_string(threshold_percent),
+            std::to_string(threshold_percent),
+            ts
+        );
+    }
     x << "</D:multistatus>";
     return x.str();
 }
@@ -495,6 +543,24 @@ handle_request(AppState& app,
             );
         }
 
+        if (parsed->op == "threshold" && parsed->section == "settings" &&
+            (parsed->name.empty() || parsed->name == "value"))
+        {
+            std::scoped_lock lock(app.mtx);
+            UserCache& uc = app.users[client_ip];
+            return make_response(
+                static_cast<http::status>(207),
+                dav_multistatus_for_threshold_settings(
+                    app.server_started_wall,
+                    include_children,
+                    target,
+                    parsed->name,
+                    uc.threshold_percent
+                ),
+                "text/xml; charset=utf-8"
+            );
+        }
+
         // /convert/<op>/in/<file> or /convert/<op>/out/<file>
         if (!parsed->op.empty() &&
             (parsed->section == "in" || parsed->section == "out") &&
@@ -526,8 +592,10 @@ handle_request(AppState& app,
 
         // Browser / sanity endpoints
         if (target == "/" || target == "/index.html") {
-            return make_response(http::status::ok,
-                "convertdav\nUse WebDAV paths under /convert/<op>/ (e.g. /convert/png-jpg/)\n");
+            const std::string html(davtools_web_ui());
+            auto res = make_response(http::status::ok, is_head ? "" : html, "text/html; charset=utf-8");
+            if (is_head) res.content_length(html.size());
+            return res;
         }
         if (target == "/convert" || target == "/convert/") {
             return make_response(http::status::ok, "convert/\n");
@@ -549,6 +617,17 @@ handle_request(AppState& app,
         }
         if (!parsed->op.empty() && (parsed->section == "in" || parsed->section == "out") && parsed->name.empty()) {
             return make_response(http::status::ok, parsed->section + "/\n");
+        }
+
+        if (parsed->op == "threshold" && parsed->section == "settings") {
+            std::scoped_lock lock(app.mtx);
+            UserCache& uc = app.users[client_ip];
+            if (parsed->name.empty()) {
+                return make_response(http::status::ok, "value/\n");
+            }
+            if (parsed->name == "value") {
+                return make_response(http::status::ok, std::to_string(uc.threshold_percent) + "\n");
+            }
         }
 
         // File reads
@@ -619,9 +698,15 @@ handle_request(AppState& app,
         }
 
         // Real upload => run converter registry
+        ConverterOptions converter_options;
+        {
+            std::scoped_lock lock(app.mtx);
+            converter_options.threshold_percent = app.users[client_ip].threshold_percent;
+        }
+
         std::vector<OutputArtifact> outputs;
         try {
-            outputs = run_converter(parsed->op, parsed->name, req.body());
+            outputs = run_converter(parsed->op, parsed->name, req.body(), converter_options);
         } catch (const std::exception& e) {
             emit_log(log, "conversion failed for " + parsed->op + "/" + parsed->name + ": " + e.what());
             return make_response(
@@ -658,6 +743,15 @@ handle_request(AppState& app,
 
     if (req.method() == http::verb::delete_) {
         auto parsed = parse_convert_path(target);
+        if (parsed && parsed->op == "threshold" && parsed->section == "settings") {
+            const auto value = parse_threshold_setting(parsed->name);
+            if (!value) {
+                return make_response(http::status::bad_request, "Threshold must be an integer from 1 to 100\n");
+            }
+            std::scoped_lock lock(app.mtx);
+            app.users[client_ip].threshold_percent = *value;
+            return make_response(http::status::no_content, "");
+        }
         if (!parsed || parsed->op.empty() || parsed->name.empty() ||
             (parsed->section != "in" && parsed->section != "out"))
         {
@@ -773,7 +867,24 @@ static void do_session(tcp::socket socket,
         if (ec == http::error::end_of_stream) break;
         if (ec) return;
 
-        auto res = handle_request(*app, client_ip, log, req);
+        std::string request_client_ip = client_ip;
+        if (client_ip == "127.0.0.1" || client_ip == "::1") {
+            const auto forwarded = req.find(http::field::x_forwarded_for);
+            if (forwarded != req.end()) {
+                std::string candidate(forwarded->value());
+                const auto first = candidate.find_first_not_of(" \t");
+                const auto last = candidate.find_last_not_of(" \t");
+                if (first != std::string::npos) {
+                    candidate = candidate.substr(first, last - first + 1);
+                    const bool valid = std::all_of(candidate.begin(), candidate.end(), [](unsigned char c) {
+                        return std::isdigit(c) || std::isxdigit(c) || c == 46 || c == 58;
+                    });
+                    if (valid) request_client_ip = std::move(candidate);
+                }
+            }
+        }
+
+        auto res = handle_request(*app, request_client_ip, log, req);
 
         res.keep_alive(req.keep_alive());
         http::write(socket, res, ec);

@@ -20,6 +20,7 @@ std::vector<OutputArtifact> convert_md5(const std::string&, const std::vector<st
 std::vector<OutputArtifact> convert_sha256(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_base64(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_json_min(const std::string&, const std::vector<std::uint8_t>&);
+std::vector<OutputArtifact> convert_threshold(const std::string&, const std::vector<std::uint8_t>&, int);
 
 namespace {
 
@@ -116,6 +117,13 @@ void init_registry_once_locked() {
     g_registry.emplace("sha256", Entry{convert_sha256, true, {}});
     g_registry.emplace("base64", Entry{convert_base64, true, {}});
     g_registry.emplace("json-min", Entry{convert_json_min, true, {}});
+    g_registry.emplace("threshold", Entry{
+        [](const std::string& name, const std::vector<std::uint8_t>& input) {
+            return convert_threshold(name, input, 50);
+        },
+        true,
+        {}
+    });
 
     // optional aliases
     g_registry.emplace("img_gif", Entry{convert_img_gif, true, {}});
@@ -188,6 +196,13 @@ void test_one(const std::string& op, bool disable_broken) {
             if (out[0].data != "{\"key\":\"value with spaces\"}") {
                 throw std::runtime_error("json-min mismatch");
             }
+        } else if (op == "threshold") {
+            auto out = g_registry.at(op).fn("selftest.png", tiny_png());
+            if (out.empty() || out[0].data.size() < 8) throw std::runtime_error("empty output");
+            const auto& data = out[0].data;
+            if (!(static_cast<unsigned char>(data[0]) == 0x89 && data.substr(1, 3) == "PNG")) {
+                throw std::runtime_error("not a PNG");
+            }
         }
     } catch (const std::exception& e) {
         if (disable_broken) {
@@ -197,7 +212,7 @@ void test_one(const std::string& op, bool disable_broken) {
 }
 
 std::vector<std::string> canonical_ops_for_testing() {
-    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "json-min"};
+    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "json-min", "threshold"};
 }
 
 } // namespace
@@ -205,7 +220,8 @@ std::vector<std::string> canonical_ops_for_testing() {
 std::vector<OutputArtifact> run_converter(
     std::string_view op,
     const std::string& input_name,
-    const std::vector<std::uint8_t>& input)
+    const std::vector<std::uint8_t>& input,
+    const ConverterOptions& options)
 {
     Fn fn;
     std::string fail_reason;
@@ -224,6 +240,9 @@ std::vector<OutputArtifact> run_converter(
         fn = it->second.fn; // copy callable out; don't hold lock during conversion
     }
 
+    if (op == "threshold") {
+        return convert_threshold(input_name, input, options.threshold_percent);
+    }
     return fn(input_name, input);
 }
 

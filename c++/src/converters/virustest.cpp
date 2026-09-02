@@ -1,6 +1,5 @@
 #include "common.hpp"
 #include <filesystem>
-#include <fstream>
 #include <vector>
 #include <string>
 
@@ -34,15 +33,6 @@ std::vector<OutputArtifact> convert_virustest(
         report = "No output from clamscan. Exit code: " + std::to_string(scan_full.exit_code);
     }
 
-    const fs::path report_path = tmp.path() / "scan-report.txt";
-    {
-        std::ofstream report_file(report_path, std::ios::binary);
-        if (!report_file) {
-            throw std::runtime_error("failed to write scan report: " + report_path.string());
-        }
-        report_file << report;
-    }
-
     // Create PNG from text report using ImageMagick
     std::string magick = conv::detect_magick_cli();
 
@@ -54,7 +44,7 @@ std::vector<OutputArtifact> convert_virustest(
             "-fill", "black",
             "-pointsize", "14",
             "-size", "900x",
-            "caption:@" + report_path.string(),
+            "caption:" + report,
             "-bordercolor", "white",
             "-border", "20",
             out_path.string()
@@ -66,7 +56,7 @@ std::vector<OutputArtifact> convert_virustest(
             "-fill", "black",
             "-pointsize", "14",
             "-size", "900x",
-            "caption:@" + report_path.string(),
+            "caption:" + report,
             "-bordercolor", "white",
             "-border", "20",
             out_path.string()

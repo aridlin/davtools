@@ -20,6 +20,11 @@ struct Blob {
 struct UserCache {
     std::unordered_map<std::string, Blob> in_files;   // key: "<op>/<filename>"
     std::unordered_map<std::string, Blob> out_files;  // key: "<op>/<filename>"
+    int threshold_percent = 50;
+};
+
+struct ConverterOptions {
+    int threshold_percent = 50;
 };
 
 struct AppState {
@@ -38,7 +43,8 @@ struct OutputArtifact {
 std::vector<OutputArtifact> run_converter(
     std::string_view op,
     const std::string& input_name,
-    const std::vector<std::uint8_t>& input
+    const std::vector<std::uint8_t>& input,
+    const ConverterOptions& options = {}
 );
 
 // Server entrypoint

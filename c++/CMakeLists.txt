@@ -32,6 +32,7 @@ endif()
 
 set(DAVTOOLS_CORE_SOURCES
     src/server.cpp
+    src/web_ui.cpp
 
     src/converters/common.cpp
     src/converters/registry.cpp
@@ -45,6 +46,7 @@ set(DAVTOOLS_CORE_SOURCES
     src/converters/sha256.cpp
     src/converters/base64.cpp
     src/converters/json_min.cpp
+    src/converters/threshold.cpp
 )
 
 add_executable(convertdav

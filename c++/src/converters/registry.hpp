@@ -14,7 +14,8 @@ struct ConverterStatus {
 std::vector<OutputArtifact> run_converter(
     std::string_view op,
     const std::string& input_name,
-    const std::vector<std::uint8_t>& input
+    const std::vector<std::uint8_t>& input,
+    const ConverterOptions& options
 );
 
 // Runs startup probes + tiny functional tests.

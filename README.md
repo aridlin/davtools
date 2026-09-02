@@ -2,6 +2,8 @@
 
 A WebDAV-based file conversion server written in **C++20**.
 
+The same binary also serves a browser UI at `/`. The image-threshold tool is available there immediately and defaults to a 50% threshold.
+
 It exposes a **virtual folder tree** (under `/convert/...`) where each converter behaves like a mini file-processing service:
 
 - upload files into `in/`
@@ -152,6 +154,14 @@ curl -X DELETE http://127.0.0.1:8080/convert/jpeg-compress/settings/quality/60
 ## Quick usage examples
 
 ## 1) Threshold conversion
+
+Browser UI:
+
+```text
+http://127.0.0.1:8080/
+```
+
+The UI uses the WebDAV endpoints below, so browser and mounted-drive workflows share the same converter implementation and per-client setting.
 
 Upload:
 

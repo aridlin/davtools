@@ -16,7 +16,7 @@ cleanup() {
     if [ -n "$SERVER_PID" ]; then
         kill "$SERVER_PID" 2>/dev/null || true
     fi
-    rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif test.pdf test_page_000.png test.mp4 test.gif
+    rm -f clean.txt clean.png tiny.png tiny.jpg tiny_inverted.png tiny.gif tiny_threshold.png threshold-source.png threshold-result.png test.pdf test_page_000.png test.mp4 test.gif
     rm -f base64.txt base64.txt.b64.txt sha256.txt sha256.txt.sha256.txt md5.txt md5.txt.md5.txt
     rm -f test_json.json test_json.min.json server_test.log
 }
@@ -116,11 +116,13 @@ if ! kill -0 "$SERVER_PID" 2>/dev/null; then
     exit 1
 fi
 
-echo "Testing root endpoint..."
-if curl -s http://127.0.0.1:8081/ | grep -q "convertdav"; then
-    pass "root endpoint"
+echo "Testing integrated web UI..."
+ROOT_HTML=$(curl -s http://127.0.0.1:8081/)
+if printf "%s" "$ROOT_HTML" | grep -q "Image threshold" &&
+   printf "%s" "$ROOT_HTML" | grep -q 'value="50"'; then
+    pass "integrated web UI defaults to 50% threshold"
 else
-    fail "root endpoint"
+    fail "integrated web UI"
 fi
 
 echo "Testing base64..."
@@ -190,6 +192,30 @@ else
         check_file tiny.gif
     else
         fail "img-gif conversion request"
+    fi
+
+    echo "Testing threshold default and configurable setting..."
+    "$MAGICK" -size 2x1 gradient:black-white threshold-source.png
+    if put_file threshold-source.png http://127.0.0.1:8081/convert/threshold/in/threshold-source.png &&
+       get_file http://127.0.0.1:8081/convert/threshold/out/threshold-source_threshold.png threshold-result.png; then
+        check_file threshold-result.png
+        COLORS=$($MAGICK identify -format "%k" threshold-result.png 2>/dev/null || identify -format "%k" threshold-result.png 2>/dev/null)
+        if [ "$COLORS" = "2" ]; then
+            pass "threshold converter is enabled with 50% default"
+        else
+            fail "threshold default output should contain two colors, got: $COLORS"
+        fi
+    else
+        fail "threshold default conversion request"
+    fi
+
+    SETTING_STATUS=$(curl -sS -o /tmp/convertdav-threshold-setting.out -w "%{http_code}" -X DELETE \
+        http://127.0.0.1:8081/convert/threshold/settings/value/100)
+    if [ "$SETTING_STATUS" = "204" ] &&
+       [ "$(curl -sS http://127.0.0.1:8081/convert/threshold/settings/value)" = "100" ]; then
+        pass "threshold setting persists per client"
+    else
+        fail "threshold setting endpoint"
     fi
 
     echo "Testing pdf-png..."
