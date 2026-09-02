@@ -358,24 +358,28 @@ static std::string dav_multistatus_for_threshold_settings(
     std::chrono::system_clock::time_point ts,
     bool include_children,
     std::string_view self_href,
-    std::string_view name,
-    int threshold_percent)
+    std::string_view name)
 {
     std::ostringstream x;
     x << R"(<?xml version="1.0" encoding="utf-8"?>)"
       << R"(<D:multistatus xmlns:D="DAV:">)";
 
-    const std::string display_name = name.empty() ? "settings" : std::string(name);
+    const auto slash = name.rfind('/');
+    const std::string display_name = name.empty()
+        ? "settings"
+        : std::string(name.substr(slash == std::string_view::npos ? 0 : slash + 1));
     append_dav_collection_response(x, self_href, display_name, ts);
     if (include_children && name.empty()) {
         append_dav_collection_response(x, "/convert/threshold/settings/value/", "value", ts);
     } else if (include_children && name == "value") {
-        append_dav_collection_response(
-            x,
-            "/convert/threshold/settings/value/" + std::to_string(threshold_percent),
-            std::to_string(threshold_percent),
-            ts
-        );
+        for (int value = 1; value <= 100; ++value) {
+            append_dav_collection_response(
+                x,
+                "/convert/threshold/settings/value/" + std::to_string(value) + "/",
+                std::to_string(value),
+                ts
+            );
+        }
     }
     x << "</D:multistatus>";
     return x.str();
@@ -544,18 +548,16 @@ handle_request(AppState& app,
         }
 
         if (parsed->op == "threshold" && parsed->section == "settings" &&
-            (parsed->name.empty() || parsed->name == "value"))
+            (parsed->name.empty() || parsed->name == "value" ||
+             parse_threshold_setting(parsed->name).has_value()))
         {
-            std::scoped_lock lock(app.mtx);
-            UserCache& uc = app.users[client_ip];
             return make_response(
                 static_cast<http::status>(207),
                 dav_multistatus_for_threshold_settings(
                     app.server_started_wall,
                     include_children,
                     target,
-                    parsed->name,
-                    uc.threshold_percent
+                    parsed->name
                 ),
                 "text/xml; charset=utf-8"
             );
