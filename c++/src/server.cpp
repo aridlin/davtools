@@ -597,6 +597,20 @@ handle_request(AppState& app,
             if (is_head) res.content_length(html.size());
             return res;
         }
+        if (target == "/converter-ui/app.css") {
+            const std::string css(davtools_web_css());
+            auto res = make_response(http::status::ok, is_head ? "" : css, "text/css; charset=utf-8");
+            if (is_head) res.content_length(css.size());
+            res.set(http::field::cache_control, "public, max-age=300");
+            return res;
+        }
+        if (target == "/converter-ui/app.js") {
+            const std::string js(davtools_web_js());
+            auto res = make_response(http::status::ok, is_head ? "" : js, "text/javascript; charset=utf-8");
+            if (is_head) res.content_length(js.size());
+            res.set(http::field::cache_control, "public, max-age=300");
+            return res;
+        }
         if (target == "/convert" || target == "/convert/") {
             return make_response(http::status::ok, "convert/\n");
         }

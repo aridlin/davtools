@@ -118,11 +118,20 @@ fi
 
 echo "Testing integrated web UI..."
 ROOT_HTML=$(curl -s http://127.0.0.1:8081/)
-if printf "%s" "$ROOT_HTML" | grep -q "Image threshold" &&
+if printf "%s" "$ROOT_HTML" | grep -q "aridlin's converter" &&
+   printf "%s" "$ROOT_HTML" | grep -q "data-threshold" &&
    printf "%s" "$ROOT_HTML" | grep -q 'value="50"'; then
     pass "integrated web UI defaults to 50% threshold"
 else
     fail "integrated web UI"
+fi
+
+CSS_HEADERS=$(curl -sSI http://127.0.0.1:8081/converter-ui/app.css)
+if printf "%s" "$CSS_HEADERS" | grep -qi 'content-type: text/css' &&
+   curl -sS http://127.0.0.1:8081/converter-ui/app.js | grep -q "operation: 'threshold'"; then
+    pass "versioned web assets are embedded in davtools"
+else
+    fail "embedded web assets"
 fi
 
 echo "Testing base64..."

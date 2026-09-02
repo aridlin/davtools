@@ -2,7 +2,7 @@
 
 A WebDAV-based file conversion server written in **C++20**.
 
-The same binary also serves a browser UI at `/`. The image-threshold tool is available there immediately and defaults to a 50% threshold.
+The same binary also serves the versioned browser UI from `web/` at `/`. Its assets are embedded at build time, so the UI ships with davtools instead of living as an untracked server directory. The image-threshold tool is selected immediately and defaults to a 50% threshold.
 
 It exposes a **virtual folder tree** (under `/convert/...`) where each converter behaves like a mini file-processing service:
 

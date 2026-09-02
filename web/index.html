@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#03120c">
+  <meta name="description" content="Convert images, video, PDFs, text, and files in the browser or through WebDAV.">
+  <title>aridlin's converter</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/converter-ui/app.css">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="aridlin's converter home"><span>&gt;_</span> aridlin's converter</a>
+    <div class="service-state" data-service-state><span></span><b>checking converter</b></div>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="page-title">
+      <p class="eyebrow">HTTPS FILE CONVERTER</p>
+      <h1 id="page-title">drop it. transform it.<br><em>keep the useful bit.</em></h1>
+      <p class="intro">No account and no ceremony. Pick what should happen, drop in a file, then download the result. Temporary files disappear automatically.</p>
+    </section>
+
+    <section class="workspace" aria-label="File converter">
+      <aside class="operations" aria-labelledby="operation-title">
+        <div class="section-heading">
+          <div><span>01</span><h2 id="operation-title">choose a tool</h2></div>
+          <b data-tool-count>10 tools</b>
+        </div>
+        <div class="tool-list" data-tool-list></div>
+      </aside>
+
+      <section class="converter-panel">
+        <div class="selected-tool">
+          <div>
+            <p class="eyebrow" data-selected-kind>IMAGE</p>
+            <h2 data-selected-title>Image threshold</h2>
+            <p data-selected-description>Turn an image into a crisp black-and-white PNG with an adjustable cutoff.</p>
+          </div>
+          <span class="selected-code" data-selected-code>threshold</span>
+        </div>
+
+        <div class="tool-settings" data-threshold-settings>
+          <div>
+            <span>BLACK / WHITE SPLIT</span>
+            <strong>threshold <b data-threshold-value>50%</b></strong>
+          </div>
+          <input type="range" min="1" max="100" value="50" data-threshold aria-label="Image threshold percentage">
+        </div>
+
+        <label class="dropzone" data-dropzone>
+          <input type="file" accept="image/*" data-file-input>
+          <span class="drop-icon" aria-hidden="true">↥</span>
+          <strong data-drop-title>drop an image here</strong>
+          <span data-drop-note>or click to choose · up to 50 MiB</span>
+          <div class="chosen-file" data-chosen-file hidden>
+            <b data-file-name></b>
+            <span data-file-size></span>
+          </div>
+        </label>
+
+        <div class="convert-row">
+          <p data-convert-hint>the result will be a black-and-white PNG</p>
+          <button class="convert-button" type="button" data-convert disabled>
+            <span data-convert-label>choose a file</span><b aria-hidden="true">→</b>
+          </button>
+        </div>
+
+        <div class="progress" data-progress hidden>
+          <div><span data-progress-label>uploading</span><b data-progress-percent>0%</b></div>
+          <div class="progress-track"><i data-progress-bar></i></div>
+        </div>
+
+        <section class="results" data-results hidden aria-live="polite">
+          <div class="section-heading results-heading">
+            <div><span>02</span><h2>take the result</h2></div>
+            <button type="button" data-refresh-results>refresh</button>
+          </div>
+          <div class="result-list" data-result-list></div>
+        </section>
+      </section>
+    </section>
+
+    <section class="webdav-card" aria-labelledby="webdav-title">
+      <div class="webdav-copy">
+        <p class="eyebrow">THE WEIRDLY PRACTICAL WAY</p>
+        <h2 id="webdav-title">use every converter inside your file explorer</h2>
+        <p>Paste the Windows path straight into File Explorer’s directory bar and press Enter—no setup wizard. Open a tool, put the file in <code>in</code>, and pick up its converted version from <code>out</code>.</p>
+      </div>
+      <div class="address-stack">
+        <div class="address-box">
+          <span>Windows File Explorer</span>
+          <code data-windows-path>\\het.aridlin.pl@SSL\DavWWWRoot\convert</code>
+          <button type="button" data-copy-url="\\het.aridlin.pl@SSL\DavWWWRoot\convert">copy</button>
+        </div>
+        <div class="address-box secondary">
+          <span>Thunar / Linux</span>
+          <code>davs://het.aridlin.pl/convert/</code>
+          <button type="button" data-copy-url="davs://het.aridlin.pl/convert/">copy</button>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>files are isolated by client and expire after about 10 minutes</span>
+      <a href="https://aridlin.pl">aridlin.pl ↗</a>
+    </footer>
+  </main>
+
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <script src="/converter-ui/app.js" defer></script>
+</body>
+</html>

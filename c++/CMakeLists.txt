@@ -14,6 +14,16 @@ option(DAVTOOLS_BUILD_FTHT_PANEL "Build the FTHt browser control panel" ON)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/index.html" DAVTOOLS_WEB_INDEX)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/app.css" DAVTOOLS_WEB_CSS)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/app.js" DAVTOOLS_WEB_JS)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/web_assets.hpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/web_assets.hpp"
+    @ONLY
+)
+
 find_path(BOOST_BEAST_INCLUDE_DIR boost/beast/http.hpp)
 if (NOT BOOST_BEAST_INCLUDE_DIR AND DAVTOOLS_FETCH_BOOST)
     FetchContent_Declare(
@@ -57,6 +67,7 @@ add_executable(convertdav
 function(configure_davtools_target target_name)
     target_include_directories(${target_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
         ${BOOST_BEAST_INCLUDE_DIR}
     )
 

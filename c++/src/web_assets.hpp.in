@@ -1,0 +1,7 @@
+#pragma once
+
+#include <string_view>
+
+inline constexpr std::string_view kDavtoolsWebIndex = R"DAVHTML(@DAVTOOLS_WEB_INDEX@)DAVHTML";
+inline constexpr std::string_view kDavtoolsWebCss = R"DAVCSS(@DAVTOOLS_WEB_CSS@)DAVCSS";
+inline constexpr std::string_view kDavtoolsWebJs = R"DAVJS(@DAVTOOLS_WEB_JS@)DAVJS";
