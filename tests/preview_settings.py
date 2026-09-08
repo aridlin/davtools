@@ -28,6 +28,15 @@ def png(path):
 def choose(op, field, value):
     assert request(f'/convert/{op}/settings/{field}/{value}.png', 'DELETE')[0] == 204
 
+def reset_defaults():
+    choose('threshold','value',50)
+    choose('halftone','density',50)
+    choose('halftone','size',24)
+    choose('bayer','grid',4)
+    choose('dither','method',1)
+    choose('dither','tone',50)
+    choose('dither','grain',1)
+
 # Reject an oversized Content-Length before any large body needs to be sent.
 parsed=urllib.parse.urlsplit(BASE)
 if parsed.hostname in ('127.0.0.1', 'localhost', '::1'):
@@ -43,6 +52,7 @@ else:
     print('SKIP header-only upload limit probe through proxy; covered on direct server')
 
 try:
+    reset_defaults()
     for op, fields in [('threshold', {'value':100}), ('halftone', {'density':100, 'size':63}), ('bayer', {'grid':4}), ('dither', {'method':2, 'tone':100, 'grain':8})]:
         root=f'/convert/{op}/settings/'
         source, source_bytes=png(root+'source.png')
@@ -116,10 +126,4 @@ try:
     request('/convert/halftone/out/dot-geometry_halftone.png','DELETE')
     print('PASS circular, symmetric, antialiased halftone dots')
 finally:
-    choose('threshold','value',50)
-    choose('halftone','density',50)
-    choose('halftone','size',24)
-    choose('bayer','grid',4)
-    choose('dither','method',1)
-    choose('dither','tone',50)
-    choose('dither','grain',1)
+    reset_defaults()
