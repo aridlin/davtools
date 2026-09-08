@@ -3,6 +3,9 @@
 
   const definitions = {
     'threshold': {title: 'Image threshold', kind: 'IMAGE', icon: '◩', short: 'black & white split', description: 'Turn an image into a crisp black-and-white PNG with an adjustable cutoff.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a black-and-white PNG'},
+    'bayer': {title: 'Bayer dither', kind: 'IMAGE', icon: '▦', short: 'ordered pixel patterns', description: 'Create black-and-white ordered dithering with a selectable Bayer grid. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a Bayer-dithered PNG'},
+    'dither': {title: 'Dither image', kind: 'IMAGE', icon: '░', short: 'fine black & white grain', description: 'Reproduce image shading with Floyd–Steinberg black-and-white dithering. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a dithered PNG'},
+    'halftone': {title: 'Halftone image', kind: 'IMAGE', icon: '⠿', short: 'newspaper-style dots', description: 'Turn image shading into a black-and-white pattern of clustered dots with adjustable dot size and density. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a halftone PNG'},
     'png-jpg': {title: 'PNG → JPG', kind: 'IMAGE', icon: '▧', short: 'flatten & compress', description: 'Flatten transparency onto white and make a clean JPEG.', accept: 'image/png', drop: 'drop a PNG here', result: 'the result will be a JPEG'},
     'invert': {title: 'Invert image', kind: 'IMAGE', icon: '◐', short: 'reverse every color', description: 'Invert the colors while keeping the original image format.', accept: 'image/*', drop: 'drop an image here', result: 'the result keeps its image format'},
     'img-gif': {title: 'Image → GIF', kind: 'IMAGE', icon: '◇', short: 'make a GIF', description: 'Turn a still image into a broadly compatible GIF.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a GIF'},
@@ -104,8 +107,50 @@
     $('[data-convert-hint]').textContent = def.result;
     fileInput.accept = def.accept;
     $('[data-threshold-settings]').hidden = operation !== 'threshold';
+    $('[data-halftone-settings]').hidden = operation !== 'halftone';
+    $('[data-bayer-settings]').hidden = operation !== 'bayer';
+    $('[data-setting-preview]').hidden = !['threshold', 'halftone', 'bayer', 'dither'].includes(operation);
+    if (!$('[data-setting-preview]').hidden) {
+      $('[data-source-preview]').src = `/convert/${operation}/settings/source.png`;
+      updatePreview();
+    }
     $('[data-results]').hidden = true;
   }
+
+  let settingsQueue = Promise.resolve();
+  let previewTimer;
+  function saveSettings() {
+    const operation = state.operation;
+    const fields = operation === 'threshold' ? [['value', $('[data-threshold]').value]]
+      : operation === 'halftone' ? [['density', $('[data-density]').value], ['size', $('[data-dot-size]').value]]
+      : operation === 'bayer' ? [['grid', $('[data-grid]').value]] : [];
+    const task = settingsQueue.catch(() => {}).then(async () => {
+      for (const [field, value] of fields) {
+        const response = await fetch(`/convert/${operation}/settings/${field}/${value}.png`, {method: 'DELETE'});
+        if (!response.ok) throw new Error(`Setting failed (HTTP ${response.status}).`);
+      }
+    });
+    settingsQueue = task;
+    return task;
+  }
+  async function updatePreview() {
+    const operation = state.operation;
+    try {
+      await saveSettings();
+      if (operation === state.operation) {
+        $('[data-result-preview]').src = `/convert/${operation}/settings/current.png?revision=${Date.now()}`;
+      }
+    } catch (error) { showToast(error.message, true); }
+  }
+  function schedulePreview() {
+    $('[data-density-value]').textContent = $('[data-density]').value;
+    $('[data-dot-size-value]').textContent = `${$('[data-dot-size]').value} px`;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(updatePreview, 180);
+  }
+  ['[data-threshold]', '[data-density]', '[data-dot-size]', '[data-grid]'].forEach(selector => {
+    $(selector).addEventListener('input', schedulePreview);
+  });
 
   function chooseFile(file) {
     if (!file) return;
@@ -181,13 +226,7 @@
     $('[data-convert-label]').textContent = 'working…';
     setProgress(2);
     try {
-      if (state.operation === 'threshold') {
-        const threshold = $('[data-threshold]').value;
-        const settingResponse = await fetch(`/convert/threshold/settings/value/${threshold}`, {method: 'DELETE'});
-        if (!settingResponse.ok && settingResponse.status !== 204) {
-          throw new Error(`Threshold setting failed (HTTP ${settingResponse.status}).`);
-        }
-      }
+      await saveSettings();
       const uploadName = encodeURIComponent(safeName(state.file.name));
       await uploadWithProgress(state.file, `/convert/${encodeURIComponent(state.operation)}/in/${uploadName}`);
       setProgress(96, 'collecting output');

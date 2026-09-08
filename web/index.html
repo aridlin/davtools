@@ -7,7 +7,7 @@
   <meta name="description" content="Convert images, video, PDFs, text, and files in the browser or through WebDAV.">
   <title>aridlin's converter</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/converter-ui/app.css">
+  <link rel="stylesheet" href="/converter-ui/app.css?v=previews-1">
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -48,6 +48,28 @@
             <strong>threshold <b data-threshold-value>50%</b></strong>
           </div>
           <input type="range" min="1" max="100" value="50" data-threshold aria-label="Image threshold percentage">
+        </div>
+
+        <div class="tool-settings" data-halftone-settings hidden>
+          <label>Ink density <b data-density-value>50</b>
+            <input type="range" min="1" max="100" value="50" data-density aria-label="Halftone ink density">
+          </label>
+          <label>Dot-cell size <b data-dot-size-value>8 px</b>
+            <input type="range" min="2" max="32" value="8" data-dot-size aria-label="Halftone dot-cell size">
+          </label>
+        </div>
+        <div class="tool-settings" data-bayer-settings hidden>
+          <label>Bayer grid size
+            <select data-grid aria-label="Bayer grid size">
+              <option value="2">2 × 2</option><option value="4" selected>4 × 4</option>
+              <option value="8">8 × 8</option><option value="16">16 × 16</option>
+            </select>
+          </label>
+        </div>
+        <div class="setting-preview" data-setting-preview>
+          <figure><figcaption>Source · Windows XP Bliss</figcaption><img data-source-preview alt="Windows XP Bliss reference wallpaper"></figure>
+          <figure><figcaption>With your settings</figcaption><img data-result-preview alt="Bliss with the selected conversion settings"></figure>
+          <p>WebDAV: open settings/source.png to view the original. Delete a numbered preview PNG inside a setting folder to select its value. Refresh the folder after changing settings.</p>
         </div>
 
         <label class="dropzone" data-dropzone>
@@ -110,6 +132,6 @@
   </main>
 
   <div class="toast" data-toast role="status" aria-live="polite"></div>
-  <script src="/converter-ui/app.js" defer></script>
+  <script src="/converter-ui/app.js?v=previews-1" defer></script>
 </body>
 </html>

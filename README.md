@@ -1,3 +1,33 @@
+## Dithering, halftone and preview settings
+
+- `dither`: Floyd–Steinberg black-and-white PNG.
+- `bayer`: ordered black-and-white PNG, with `grid` values 2, 4, 8, 16 (default 4).
+- `halftone`: clustered-dot black-and-white PNG, with `density` 1–100 (default 50) and `size` 2–32 pixels per dot cell (default 8). Higher density adds ink; size controls dot spacing. Dimensions stay unchanged.
+
+These converters flatten transparency onto white and use the first frame of animated images.
+The web interface shows Windows XP **Bliss** beside a live settings preview.
+
+Browse `/convert/<tool>/settings/` in WebDAV:
+
+- `source.png`: original Bliss reference image.
+- `current.png`: reference converted with your current settings.
+- `<setting>/<value>.png`: reference converted with that value and your other current settings. **Delete this PNG to select its value**; the virtual file remains available afterward. Refresh thumbnails after changing settings.
+
+Threshold also uses preview PNGs (`value/1.png` through `value/100.png`).
+Legacy numeric DELETE paths still work. Settings remain per client IP, as before.
+The reference images are read-only. GET, HEAD and PROPFIND do not change settings.
+
+```sh
+curl -X DELETE https://het.aridlin.pl/convert/halftone/settings/density/65.png
+curl -X DELETE https://het.aridlin.pl/convert/halftone/settings/size/12.png
+curl -T photo.jpg https://het.aridlin.pl/convert/halftone/in/photo.jpg
+curl https://het.aridlin.pl/convert/halftone/out/photo_halftone.png -o photo_halftone.png
+```
+
+The preview reference is Charles O’Rear’s **Bliss**, the Windows XP wallpaper, downloaded from
+[Wikipedia's reference image](https://en.wikipedia.org/wiki/File:Bliss_(Windows_XP).png).
+It is a separate third-party image, not covered by the project's source-code license.
+
 # convertdav
 
 A WebDAV-based file conversion server written in **C++20**.

@@ -18,6 +18,9 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/index.html" DAVTOOLS_WEB_INDEX)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/app.css" DAVTOOLS_WEB_CSS)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/app.js" DAVTOOLS_WEB_JS)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/bliss.png" BLISS_HEX HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," BLISS_BYTES "${BLISS_HEX}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/bliss.hpp" "#pragma once\nstatic const unsigned char bliss_bytes[] = {${BLISS_BYTES}};\n")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/web_assets.hpp.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/web_assets.hpp"
@@ -43,6 +46,7 @@ endif()
 set(DAVTOOLS_CORE_SOURCES
     src/server.cpp
     src/web_ui.cpp
+    src/preview_settings.cpp
 
     src/converters/common.cpp
     src/converters/registry.cpp
@@ -56,6 +60,7 @@ set(DAVTOOLS_CORE_SOURCES
     src/converters/sha256.cpp
     src/converters/base64.cpp
     src/converters/json_min.cpp
+    src/converters/monochrome.cpp
     src/converters/threshold.cpp
 )
 

@@ -220,11 +220,11 @@ else
 
     SETTINGS_XML=$(curl -sS -X PROPFIND -H "Depth: 1" \
         http://127.0.0.1:8081/convert/threshold/settings/value/)
-    SETTINGS_COUNT=$(printf '%s' "$SETTINGS_XML" | grep -oE '/convert/threshold/settings/value/[0-9]+/' | sort -u | wc -l | tr -d ' ')
+    SETTINGS_COUNT=$(printf '%s' "$SETTINGS_XML" | grep -oE '/convert/threshold/settings/value/[0-9]+\.png' | sort -u | wc -l | tr -d ' ')
     if [ "$SETTINGS_COUNT" = "100" ] &&
-       printf '%s' "$SETTINGS_XML" | grep -q '/convert/threshold/settings/value/1/' &&
-       printf '%s' "$SETTINGS_XML" | grep -q '/convert/threshold/settings/value/50/' &&
-       printf '%s' "$SETTINGS_XML" | grep -q '/convert/threshold/settings/value/100/'; then
+       printf '%s' "$SETTINGS_XML" | grep -q '/convert/threshold/settings/value/1.png' &&
+       printf '%s' "$SETTINGS_XML" | grep -q '/convert/threshold/settings/value/50.png' &&
+       printf '%s' "$SETTINGS_XML" | grep -q '/convert/threshold/settings/value/100.png'; then
         pass "threshold settings list exposes values 1 through 100"
     else
         fail "threshold settings WebDAV listing (found $SETTINGS_COUNT values)"
@@ -232,12 +232,12 @@ else
 
     SETTING_LEAF_STATUS=$(curl -sS -o /tmp/convertdav-threshold-setting-leaf.out -w "%{http_code}" \
         -X PROPFIND -H "Depth: 0" \
-        http://127.0.0.1:8081/convert/threshold/settings/value/50/)
+        http://127.0.0.1:8081/convert/threshold/settings/value/50.png)
     if [ "$SETTING_LEAF_STATUS" = "207" ] &&
        grep -q '/convert/threshold/settings/value/50' /tmp/convertdav-threshold-setting-leaf.out; then
-        pass "threshold setting folders are valid WebDAV resources"
+        pass "threshold setting previews are valid WebDAV resources"
     else
-        fail "threshold setting folder PROPFIND"
+        fail "threshold setting preview PROPFIND"
     fi
 
     SETTING_STATUS=$(curl -sS -o /tmp/convertdav-threshold-setting.out -w "%{http_code}" -X DELETE \

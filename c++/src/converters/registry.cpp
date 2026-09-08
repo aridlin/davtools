@@ -22,6 +22,10 @@ std::vector<OutputArtifact> convert_base64(const std::string&, const std::vector
 std::vector<OutputArtifact> convert_json_min(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_threshold(const std::string&, const std::vector<std::uint8_t>&, int);
 
+std::vector<OutputArtifact> convert_dither(const std::string&, const std::vector<std::uint8_t>&);
+std::vector<OutputArtifact> convert_halftone(const std::string&, const std::vector<std::uint8_t>&, int = 50, int = 8);
+std::vector<OutputArtifact> convert_bayer(const std::string&, const std::vector<std::uint8_t>&, int = 4);
+
 namespace {
 
 using Fn = std::function<std::vector<OutputArtifact>(const std::string&, const std::vector<std::uint8_t>&)>;
@@ -125,6 +129,11 @@ void init_registry_once_locked() {
         {}
     });
 
+    g_registry.emplace("dither", Entry{convert_dither, true, {}});
+    g_registry.emplace("halftone", Entry{[](const auto& n, const auto& i) { return convert_halftone(n, i); }, true, {}});
+
+    g_registry.emplace("bayer", Entry{[](const auto& n, const auto& i) { return convert_bayer(n, i); }, true, {}});
+
     // optional aliases
     g_registry.emplace("img_gif", Entry{convert_img_gif, true, {}});
     g_registry.emplace("pdf_png", Entry{convert_pdf_png, true, {}});
@@ -196,7 +205,7 @@ void test_one(const std::string& op, bool disable_broken) {
             if (out[0].data != "{\"key\":\"value with spaces\"}") {
                 throw std::runtime_error("json-min mismatch");
             }
-        } else if (op == "threshold") {
+        } else if (op == "threshold" || op == "dither" || op == "halftone" || op == "bayer") {
             auto out = g_registry.at(op).fn("selftest.png", tiny_png());
             if (out.empty() || out[0].data.size() < 8) throw std::runtime_error("empty output");
             const auto& data = out[0].data;
@@ -212,7 +221,7 @@ void test_one(const std::string& op, bool disable_broken) {
 }
 
 std::vector<std::string> canonical_ops_for_testing() {
-    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "json-min", "threshold"};
+    return {"png-jpg", "invert", "img-gif", "pdf-png", "mp4-gif", "virustest", "md5", "sha256", "base64", "json-min", "threshold", "dither", "halftone", "bayer"};
 }
 
 } // namespace
@@ -243,6 +252,8 @@ std::vector<OutputArtifact> run_converter(
     if (op == "threshold") {
         return convert_threshold(input_name, input, options.threshold_percent);
     }
+    if (op == "halftone") return convert_halftone(input_name, input, options.halftone_density, options.halftone_size);
+    if (op == "bayer") return convert_bayer(input_name, input, options.bayer_grid);
     return fn(input_name, input);
 }
 

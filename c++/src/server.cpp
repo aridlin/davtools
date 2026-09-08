@@ -1,5 +1,6 @@
 #include "app.hpp"
 #include "web_ui.hpp"
+#include "preview_settings.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
@@ -34,7 +35,7 @@ static void emit_log(const ServerLogCallback& log, std::string message) {
 }
 
 // Add new converter names here when you add files to the registry.
-static const std::array<std::string_view, 11> kConverters = {
+static const std::array<std::string_view, 14> kConverters = {
     "png-jpg",
     "invert",
     "img-gif",
@@ -45,7 +46,10 @@ static const std::array<std::string_view, 11> kConverters = {
     "sha256",
     "base64",
     "json-min",
-    "threshold"
+    "threshold",
+    "dither",
+    "halftone",
+    "bayer"
 };
 
 struct ParsedConvertPath {
@@ -75,20 +79,11 @@ static bool is_known_converter(std::string_view op) {
     return false;
 }
 
-static std::optional<int> parse_threshold_setting(std::string_view name) {
-    constexpr std::string_view prefix = "value/";
-    if (!starts_with(name, prefix)) return std::nullopt;
-    const std::string raw(name.substr(prefix.size()));
-    if (raw.empty() || !std::all_of(raw.begin(), raw.end(), [](unsigned char c) { return std::isdigit(c); })) {
-        return std::nullopt;
-    }
-    try {
-        const int value = std::stoi(raw);
-        if (value < 1 || value > 100) return std::nullopt;
-        return value;
-    } catch (...) {
-        return std::nullopt;
-    }
+static bool has_previews(std::string_view op) {
+    return op == "dither" || !preview_fields(op).empty();
+}
+static ConverterOptions user_options(const UserCache& u) {
+    return {u.threshold_percent, u.halftone_density, u.halftone_size, u.bayer_grid};
 }
 
 static std::string xml_escape(std::string_view in) {
@@ -345,8 +340,8 @@ static std::string dav_multistatus_for_converter_root(std::chrono::system_clock:
     if (include_children) {
         append_dav_collection_response(x, "/convert/" + std::string(op) + "/in/",  "in",  ts);
         append_dav_collection_response(x, "/convert/" + std::string(op) + "/out/", "out", ts);
-        if (op == "threshold") {
-            append_dav_collection_response(x, "/convert/threshold/settings/", "settings", ts);
+        if (has_previews(op)) {
+            append_dav_collection_response(x, "/convert/" + std::string(op) + "/settings/", "settings", ts);
         }
     }
 
@@ -354,35 +349,38 @@ static std::string dav_multistatus_for_converter_root(std::chrono::system_clock:
     return x.str();
 }
 
-static std::string dav_multistatus_for_threshold_settings(
-    std::chrono::system_clock::time_point ts,
-    bool include_children,
-    std::string_view self_href,
-    std::string_view name)
+static std::string dav_preview_listing(std::string_view op, const std::string& name,
+    bool children, std::chrono::system_clock::time_point ts)
 {
+    const std::string base = "/convert/" + std::string(op) + "/settings/";
     std::ostringstream x;
-    x << R"(<?xml version="1.0" encoding="utf-8"?>)"
-      << R"(<D:multistatus xmlns:D="DAV:">)";
-
-    const auto slash = name.rfind('/');
-    const std::string display_name = name.empty()
-        ? "settings"
-        : std::string(name.substr(slash == std::string_view::npos ? 0 : slash + 1));
-    append_dav_collection_response(x, self_href, display_name, ts);
-    if (include_children && name.empty()) {
-        append_dav_collection_response(x, "/convert/threshold/settings/value/", "value", ts);
-    } else if (include_children && name == "value") {
-        for (int value = 1; value <= 100; ++value) {
-            append_dav_collection_response(
-                x,
-                "/convert/threshold/settings/value/" + std::to_string(value) + "/",
-                std::to_string(value),
-                ts
-            );
+    x << R"(<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:">)";
+    auto file = [&](const std::string& n) {
+        // Dynamic previews: omit unknown length instead of advertising an empty file.
+        x << "<D:response><D:href>" << base+n << "</D:href><D:propstat><D:prop>"
+          << "<D:displayname>" << n.substr(n.rfind('/') == std::string::npos ? 0 : n.rfind('/')+1)
+          << "</D:displayname><D:resourcetype/><D:getcontenttype>image/png</D:getcontenttype>"
+          << "</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>";
+    };
+    if (name.ends_with(".png")) file(name);
+    else {
+        append_dav_collection_response(x, base+name+(name.empty()?"":"/"), name.empty()?"settings":name, ts);
+        if (children && name.empty()) {
+            file("source.png"); file("current.png");
+            for (const auto& [field, values] : preview_fields(op))
+                append_dav_collection_response(x, base+field+"/", field, ts);
+        } else if (children) {
+            for (const auto& [field, values] : preview_fields(op)) if (name == field)
+                for (int v : values) file(field+"/"+std::to_string(v)+".png");
         }
     }
     x << "</D:multistatus>";
     return x.str();
+}
+static bool valid_preview_path(std::string_view op, const std::string& name) {
+    if (name.empty() || name == "source.png" || name == "current.png" || parse_preview_setting(op, name)) return true;
+    for (const auto& [f, values] : preview_fields(op)) if (name == f) return true;
+    return false;
 }
 
 static std::string dav_multistatus_for_io_collection(const UserCache& cache,
@@ -476,7 +474,7 @@ handle_request(AppState& app,
                const ServerLogCallback& log,
                const http::request<http::vector_body<std::uint8_t>>& req)
 {
-    const std::string target = std::string(req.target());
+    const std::string target = std::string(req.target()).substr(0, std::string(req.target()).find('?'));
     const std::string method = std::string(req.method_string());
 
     emit_log(log, "[" + client_ip + "] " + method + " " + target);
@@ -547,20 +545,9 @@ handle_request(AppState& app,
             );
         }
 
-        if (parsed->op == "threshold" && parsed->section == "settings" &&
-            (parsed->name.empty() || parsed->name == "value" ||
-             parse_threshold_setting(parsed->name).has_value()))
-        {
-            return make_response(
-                static_cast<http::status>(207),
-                dav_multistatus_for_threshold_settings(
-                    app.server_started_wall,
-                    include_children,
-                    target,
-                    parsed->name
-                ),
-                "text/xml; charset=utf-8"
-            );
+        if (has_previews(parsed->op) && parsed->section == "settings" && valid_preview_path(parsed->op, parsed->name)) {
+            return make_response(static_cast<http::status>(207),
+                dav_preview_listing(parsed->op, parsed->name, include_children, app.server_started_wall), "text/xml; charset=utf-8");
         }
 
         // /convert/<op>/in/<file> or /convert/<op>/out/<file>
@@ -635,15 +622,25 @@ handle_request(AppState& app,
             return make_response(http::status::ok, parsed->section + "/\n");
         }
 
-        if (parsed->op == "threshold" && parsed->section == "settings") {
-            std::scoped_lock lock(app.mtx);
-            UserCache& uc = app.users[client_ip];
-            if (parsed->name.empty()) {
-                return make_response(http::status::ok, "value/\n");
+        if (has_previews(parsed->op) && parsed->section == "settings" && valid_preview_path(parsed->op, parsed->name)) {
+            ConverterOptions options;
+            { std::scoped_lock lock(app.mtx); options = user_options(app.users[client_ip]); }
+            if (parsed->name.ends_with(".png")) {
+                try {
+                    const auto png = settings_preview(parsed->op, parsed->name, options);
+                    auto response = make_response(http::status::ok, is_head ? "" : png, "image/png");
+                    if (is_head) response.content_length(png.size());
+                    response.set(http::field::cache_control, "no-store");
+                    return response;
+                } catch (const std::exception& e) {
+                    return make_response(http::status::service_unavailable, std::string("Preview unavailable: ")+e.what()+"\n");
+                }
             }
-            if (parsed->name == "value") {
-                return make_response(http::status::ok, std::to_string(uc.threshold_percent) + "\n");
+            for (const auto& [field, values] : preview_fields(parsed->op)) if (parsed->name == field) {
+                int value = field == "value" ? options.threshold_percent : field == "density" ? options.halftone_density : field == "size" ? options.halftone_size : options.bayer_grid;
+                return make_response(http::status::ok, std::to_string(value)+"\n");
             }
+            return make_response(http::status::ok, "View source.png and current.png. Delete a numbered preview PNG to select that setting.\n");
         }
 
         // File reads
@@ -717,7 +714,7 @@ handle_request(AppState& app,
         ConverterOptions converter_options;
         {
             std::scoped_lock lock(app.mtx);
-            converter_options.threshold_percent = app.users[client_ip].threshold_percent;
+            converter_options = user_options(app.users[client_ip]);
         }
 
         std::vector<OutputArtifact> outputs;
@@ -759,13 +756,19 @@ handle_request(AppState& app,
 
     if (req.method() == http::verb::delete_) {
         auto parsed = parse_convert_path(target);
-        if (parsed && parsed->op == "threshold" && parsed->section == "settings") {
-            const auto value = parse_threshold_setting(parsed->name);
-            if (!value) {
-                return make_response(http::status::bad_request, "Threshold must be an integer from 1 to 100\n");
-            }
+        if (parsed && has_previews(parsed->op) && parsed->section == "settings") {
+            if (parsed->name == "source.png" || parsed->name == "current.png")
+                return make_response(http::status::forbidden, "Reference previews cannot be deleted\n");
+            const auto setting = parse_preview_setting(parsed->op, parsed->name);
+            if (!setting) return make_response(http::status::bad_request, "Invalid setting value\n");
             std::scoped_lock lock(app.mtx);
-            app.users[client_ip].threshold_percent = *value;
+            auto& user = app.users[client_ip];
+            auto options = user_options(user);
+            apply_preview_setting(options, setting->first, setting->second);
+            user.threshold_percent = options.threshold_percent;
+            user.halftone_density = options.halftone_density;
+            user.halftone_size = options.halftone_size;
+            user.bayer_grid = options.bayer_grid;
             return make_response(http::status::no_content, "");
         }
         if (!parsed || parsed->op.empty() || parsed->name.empty() ||

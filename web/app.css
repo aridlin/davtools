@@ -166,3 +166,13 @@ footer a:hover { color: var(--green); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.setting-preview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 20px; }
+.setting-preview figure { margin: 0; min-width: 0; }
+.setting-preview figcaption { font-size: 12px; margin-bottom: 7px; }
+.setting-preview img { display: block; width: 100%; aspect-ratio: 365 / 274; object-fit: contain; border-radius: 8px; background: #fff; image-rendering: pixelated; }
+.setting-preview p { grid-column: 1 / -1; font-size: 12px; line-height: 1.5; margin: 0; opacity: .75; }
+.tool-settings label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tool-settings select { padding: 8px; border-radius: 6px; }
+[hidden] { display: none !important; }
+@media (max-width: 480px) { .setting-preview { grid-template-columns: 1fr; } }
