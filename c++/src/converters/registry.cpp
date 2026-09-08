@@ -22,8 +22,8 @@ std::vector<OutputArtifact> convert_base64(const std::string&, const std::vector
 std::vector<OutputArtifact> convert_json_min(const std::string&, const std::vector<std::uint8_t>&);
 std::vector<OutputArtifact> convert_threshold(const std::string&, const std::vector<std::uint8_t>&, int);
 
-std::vector<OutputArtifact> convert_dither(const std::string&, const std::vector<std::uint8_t>&);
-std::vector<OutputArtifact> convert_halftone(const std::string&, const std::vector<std::uint8_t>&, int = 50, int = 8);
+std::vector<OutputArtifact> convert_dither(const std::string&, const std::vector<std::uint8_t>&, int = 1, int = 50, int = 1);
+std::vector<OutputArtifact> convert_halftone(const std::string&, const std::vector<std::uint8_t>&, int = 50, int = 24);
 std::vector<OutputArtifact> convert_bayer(const std::string&, const std::vector<std::uint8_t>&, int = 4);
 
 namespace {
@@ -129,7 +129,7 @@ void init_registry_once_locked() {
         {}
     });
 
-    g_registry.emplace("dither", Entry{convert_dither, true, {}});
+    g_registry.emplace("dither", Entry{[](const auto& n, const auto& i) { return convert_dither(n, i); }, true, {}});
     g_registry.emplace("halftone", Entry{[](const auto& n, const auto& i) { return convert_halftone(n, i); }, true, {}});
 
     g_registry.emplace("bayer", Entry{[](const auto& n, const auto& i) { return convert_bayer(n, i); }, true, {}});
@@ -252,6 +252,7 @@ std::vector<OutputArtifact> run_converter(
     if (op == "threshold") {
         return convert_threshold(input_name, input, options.threshold_percent);
     }
+    if (op == "dither") return convert_dither(input_name, input, options.dither_method, options.dither_tone, options.dither_grain);
     if (op == "halftone") return convert_halftone(input_name, input, options.halftone_density, options.halftone_size);
     if (op == "bayer") return convert_bayer(input_name, input, options.bayer_grid);
     return fn(input_name, input);

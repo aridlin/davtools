@@ -22,15 +22,21 @@ struct UserCache {
     std::unordered_map<std::string, Blob> out_files;  // key: "<op>/<filename>"
     int threshold_percent = 50;
     int halftone_density = 50;
-    int halftone_size = 8;
+    int halftone_size = 24;
     int bayer_grid = 4;
+    int dither_method = 1;
+    int dither_tone = 50;
+    int dither_grain = 1;
 };
 
 struct ConverterOptions {
     int threshold_percent = 50;
     int halftone_density = 50;
-    int halftone_size = 8;
+    int halftone_size = 24;
     int bayer_grid = 4;
+    int dither_method = 1;
+    int dither_tone = 50;
+    int dither_grain = 1;
 };
 
 struct AppState {

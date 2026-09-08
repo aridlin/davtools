@@ -4,8 +4,8 @@
   const definitions = {
     'threshold': {title: 'Image threshold', kind: 'IMAGE', icon: '◩', short: 'black & white split', description: 'Turn an image into a crisp black-and-white PNG with an adjustable cutoff.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a black-and-white PNG'},
     'bayer': {title: 'Bayer dither', kind: 'IMAGE', icon: '▦', short: 'ordered pixel patterns', description: 'Create black-and-white ordered dithering with a selectable Bayer grid. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a Bayer-dithered PNG'},
-    'dither': {title: 'Dither image', kind: 'IMAGE', icon: '░', short: 'fine black & white grain', description: 'Reproduce image shading with Floyd–Steinberg black-and-white dithering. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a dithered PNG'},
-    'halftone': {title: 'Halftone image', kind: 'IMAGE', icon: '⠿', short: 'newspaper-style dots', description: 'Turn image shading into a black-and-white pattern of clustered dots with adjustable dot size and density. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a halftone PNG'},
+    'dither': {title: 'Dither image', kind: 'IMAGE', icon: '░', short: 'fine black & white grain', description: 'Choose Floyd–Steinberg or Atkinson dithering, then adjust ink tone and grain size. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a dithered PNG'},
+    'halftone': {title: 'Halftone image', kind: 'IMAGE', icon: '⠿', short: 'newspaper-style dots', description: 'Render smooth circular ink dots from each area’s average tone. Density controls ink coverage; spacing controls the dot screen. Transparency is flattened onto white; animated inputs use the first frame.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a halftone PNG'},
     'png-jpg': {title: 'PNG → JPG', kind: 'IMAGE', icon: '▧', short: 'flatten & compress', description: 'Flatten transparency onto white and make a clean JPEG.', accept: 'image/png', drop: 'drop a PNG here', result: 'the result will be a JPEG'},
     'invert': {title: 'Invert image', kind: 'IMAGE', icon: '◐', short: 'reverse every color', description: 'Invert the colors while keeping the original image format.', accept: 'image/*', drop: 'drop an image here', result: 'the result keeps its image format'},
     'img-gif': {title: 'Image → GIF', kind: 'IMAGE', icon: '◇', short: 'make a GIF', description: 'Turn a still image into a broadly compatible GIF.', accept: 'image/*', drop: 'drop an image here', result: 'the result will be a GIF'},
@@ -92,6 +92,8 @@
   }
 
   function selectOperation(operation) {
+    clearTimeout(previewTimer);
+    ++previewRevision;
     state.operation = operation;
     const def = definitions[operation] || {title: operation, kind: 'TOOL', description: `Convert with ${operation}.`, accept: '*/*', drop: 'drop a file here', result: 'the result will appear below'};
     document.querySelectorAll('[data-operation]').forEach(button => {
@@ -107,11 +109,14 @@
     $('[data-convert-hint]').textContent = def.result;
     fileInput.accept = def.accept;
     $('[data-threshold-settings]').hidden = operation !== 'threshold';
+    $('[data-dither-settings]').hidden = operation !== 'dither';
     $('[data-halftone-settings]').hidden = operation !== 'halftone';
     $('[data-bayer-settings]').hidden = operation !== 'bayer';
     $('[data-setting-preview]').hidden = !['threshold', 'halftone', 'bayer', 'dither'].includes(operation);
     if (!$('[data-setting-preview]').hidden) {
-      $('[data-source-preview]').src = `/convert/${operation}/settings/source.png`;
+      const source = `/convert/${operation}/settings/source.png`;
+      $('[data-source-preview]').src = source;
+      $('[data-source-full]').href = source;
       updatePreview();
     }
     $('[data-results]').hidden = true;
@@ -119,11 +124,15 @@
 
   let settingsQueue = Promise.resolve();
   let previewTimer;
+  function selectedFields(operation) {
+    return operation === 'threshold' ? [['value', $('[data-threshold]').value]]
+      : operation === 'halftone' ? [['density', $('[data-density]').value], ['size', $('[data-dot-size]').value]]
+      : operation === 'bayer' ? [['grid', $('[data-grid]').value]]
+      : operation === 'dither' ? [['method', $('[data-dither-method]').value], ['tone', $('[data-tone]').value], ['grain', $('[data-grain]').value]] : [];
+  }
   function saveSettings() {
     const operation = state.operation;
-    const fields = operation === 'threshold' ? [['value', $('[data-threshold]').value]]
-      : operation === 'halftone' ? [['density', $('[data-density]').value], ['size', $('[data-dot-size]').value]]
-      : operation === 'bayer' ? [['grid', $('[data-grid]').value]] : [];
+    const fields = selectedFields(operation);
     const task = settingsQueue.catch(() => {}).then(async () => {
       for (const [field, value] of fields) {
         const response = await fetch(`/convert/${operation}/settings/${field}/${value}.png`, {method: 'DELETE'});
@@ -133,22 +142,39 @@
     settingsQueue = task;
     return task;
   }
+  let previewRevision = 0;
   async function updatePreview() {
     const operation = state.operation;
+    const revision = ++previewRevision;
+    const query = new URLSearchParams(selectedFields(operation));
+    query.set('revision', String(revision));
+    const url = `/convert/${operation}/settings/current.png?${query}`;
+    const status = $('[data-preview-status]');
+    status.textContent = 'Rendering preview…';
     try {
-      await saveSettings();
-      if (operation === state.operation) {
-        $('[data-result-preview]').src = `/convert/${operation}/settings/current.png?revision=${Date.now()}`;
-      }
-    } catch (error) { showToast(error.message, true); }
+      // Decode before replacing the visible image; keep the last valid preview
+      // visible while working, and never let an older request replace a newer one.
+      const candidate = new Image();
+      candidate.src = url;
+      await candidate.decode();
+      if (revision !== previewRevision || operation !== state.operation) return;
+      $('[data-result-preview]').src = url;
+      $('[data-result-full]').href = url;
+      status.textContent = `${candidate.naturalWidth} × ${candidate.naturalHeight} · click to inspect full resolution`;
+    } catch (error) {
+      if (revision === previewRevision) status.textContent = 'Preview could not load. Adjust a setting to retry.';
+    }
   }
   function schedulePreview() {
+    ++previewRevision;
+    $('[data-tone-value]').textContent = $('[data-tone]').value;
+    $('[data-grain-value]').textContent = `${$('[data-grain]').value} px`;
     $('[data-density-value]').textContent = $('[data-density]').value;
     $('[data-dot-size-value]').textContent = `${$('[data-dot-size]').value} px`;
     clearTimeout(previewTimer);
     previewTimer = setTimeout(updatePreview, 180);
   }
-  ['[data-threshold]', '[data-density]', '[data-dot-size]', '[data-grid]'].forEach(selector => {
+  ['[data-threshold]', '[data-density]', '[data-dot-size]', '[data-grid]', '[data-dither-method]', '[data-tone]', '[data-grain]'].forEach(selector => {
     $(selector).addEventListener('input', schedulePreview);
   });
 

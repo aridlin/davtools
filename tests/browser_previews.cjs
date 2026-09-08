@@ -20,9 +20,28 @@ const {firefox} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
           await page.locator('[data-dot-size]').fill('12');
           await page.locator('[data-dot-size]').dispatchEvent('input');
         }
+        if (op==='dither') {
+          if (!await page.locator('[data-dither-settings]').isVisible()) throw new Error('Dither settings hidden');
+          await page.locator('[data-dither-method]').selectOption('2');
+          await page.locator('[data-tone]').fill('65');
+          await page.locator('[data-tone]').dispatchEvent('input');
+          await page.locator('[data-grain]').fill('2');
+          await page.locator('[data-grain]').dispatchEvent('input');
+        }
         if (op==='bayer') await page.locator('[data-grid]').selectOption('8');
-        await page.waitForTimeout(500);
-        await page.locator('[data-file-input]').setInputFiles(process.env.TEST_IMAGE || 'web/bliss.png');
+        await page.waitForFunction(op => {
+          const img=document.querySelector('[data-result-preview]');
+          const query=new URL(img.src).searchParams;
+          const matches = op === 'dither' ? query.get('method') === '2' && query.get('tone') === '65' && query.get('grain') === '2'
+            : op === 'halftone' ? query.get('density') === '70' && query.get('size') === '12'
+            : op === 'bayer' ? query.get('grid') === '8' : true;
+          return matches && document.querySelector('[data-preview-status]').textContent.includes('1600 × 1287') && img.complete && img.naturalWidth === 1600;
+        },op);
+        if (op==='halftone' || op==='dither') {
+          await page.waitForTimeout(800);
+          await page.screenshot({path:`/tmp/davtools-${op}-${width}.png`,fullPage:true});
+        }
+        await page.locator('[data-file-input]').setInputFiles(process.env.TEST_IMAGE || 'web/bliss.jpg');
         await page.locator('[data-convert]').click();
         await page.locator('[data-results]').waitFor({state:'visible'});
         if (await page.locator('[data-toast]').textContent() !== 'Conversion finished.') throw new Error('Conversion failed for '+op);

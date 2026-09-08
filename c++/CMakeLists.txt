@@ -18,7 +18,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/index.html" DAVTOOLS_WEB_INDEX)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/app.css" DAVTOOLS_WEB_CSS)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/app.js" DAVTOOLS_WEB_JS)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/bliss.png" BLISS_HEX HEX)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../web/bliss.jpg" BLISS_HEX HEX)
 string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," BLISS_BYTES "${BLISS_HEX}")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/bliss.hpp" "#pragma once\nstatic const unsigned char bliss_bytes[] = {${BLISS_BYTES}};\n")
 configure_file(

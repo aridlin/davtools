@@ -83,7 +83,7 @@ static bool has_previews(std::string_view op) {
     return op == "dither" || !preview_fields(op).empty();
 }
 static ConverterOptions user_options(const UserCache& u) {
-    return {u.threshold_percent, u.halftone_density, u.halftone_size, u.bayer_grid};
+    return {u.threshold_percent, u.halftone_density, u.halftone_size, u.bayer_grid, u.dither_method, u.dither_tone, u.dither_grain};
 }
 
 static std::string xml_escape(std::string_view in) {
@@ -626,6 +626,22 @@ handle_request(AppState& app,
             ConverterOptions options;
             { std::scoped_lock lock(app.mtx); options = user_options(app.users[client_ip]); }
             if (parsed->name.ends_with(".png")) {
+                // Explicit preview parameters never mutate the user's saved settings.
+                // This also prevents another tab's setting writes from changing this preview.
+                const std::string raw_target(req.target());
+                if (auto q = raw_target.find('?'); q != std::string::npos) {
+                    std::istringstream query(raw_target.substr(q+1));
+                    std::string item;
+                    while (std::getline(query, item, '&')) {
+                        const auto eq = item.find('=');
+                        const auto field = item.substr(0, eq);
+                        if (field == "revision") continue;
+                        if (eq == std::string::npos) return make_response(http::status::bad_request, "Invalid preview parameter\n");
+                        const auto setting = parse_preview_setting(parsed->op, field+"/"+item.substr(eq+1));
+                        if (!setting) return make_response(http::status::bad_request, "Invalid preview parameter\n");
+                        apply_preview_setting(options, setting->first, setting->second);
+                    }
+                }
                 try {
                     const auto png = settings_preview(parsed->op, parsed->name, options);
                     auto response = make_response(http::status::ok, is_head ? "" : png, "image/png");
@@ -637,7 +653,7 @@ handle_request(AppState& app,
                 }
             }
             for (const auto& [field, values] : preview_fields(parsed->op)) if (parsed->name == field) {
-                int value = field == "value" ? options.threshold_percent : field == "density" ? options.halftone_density : field == "size" ? options.halftone_size : options.bayer_grid;
+                int value = field == "value" ? options.threshold_percent : field == "density" ? options.halftone_density : field == "size" ? options.halftone_size : field == "method" ? options.dither_method : field == "tone" ? options.dither_tone : field == "grain" ? options.dither_grain : options.bayer_grid;
                 return make_response(http::status::ok, std::to_string(value)+"\n");
             }
             return make_response(http::status::ok, "View source.png and current.png. Delete a numbered preview PNG to select that setting.\n");
@@ -769,6 +785,9 @@ handle_request(AppState& app,
             user.halftone_density = options.halftone_density;
             user.halftone_size = options.halftone_size;
             user.bayer_grid = options.bayer_grid;
+            user.dither_method = options.dither_method;
+            user.dither_tone = options.dither_tone;
+            user.dither_grain = options.dither_grain;
             return make_response(http::status::no_content, "");
         }
         if (!parsed || parsed->op.empty() || parsed->name.empty() ||
@@ -879,12 +898,18 @@ static void do_session(tcp::socket socket,
     constexpr int MAX_REQS_PER_CONN = 64;
 
     for (;;) {
-        http::request<http::vector_body<std::uint8_t>> req;
-        req.body().reserve(1024);
-
-        http::read(socket, buffer, req, ec);
+        http::request_parser<http::vector_body<std::uint8_t>> parser;
+        parser.body_limit(50ULL * 1024 * 1024);
+        http::read(socket, buffer, parser, ec);
         if (ec == http::error::end_of_stream) break;
+        if (ec == http::error::body_limit) {
+            auto response = make_response(http::status::payload_too_large, "File exceeds the 50 MiB upload limit\n");
+            response.keep_alive(false);
+            http::write(socket, response, ec);
+            return;
+        }
         if (ec) return;
+        auto req = parser.release();
 
         std::string request_client_ip = client_ip;
         if (client_ip == "127.0.0.1" || client_ip == "::1") {

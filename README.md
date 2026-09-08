@@ -1,11 +1,11 @@
 ## Dithering, halftone and preview settings
 
-- `dither`: Floyd–Steinberg black-and-white PNG.
+- `dither`: serpentine error-diffusion PNG with `method` 1 = Floyd–Steinberg, 2 = Atkinson; `tone` 1–100 (default 50, higher adds ink); `grain` 1–8 pixels (default 1). All three have browser controls and WebDAV preview files.
 - `bayer`: ordered black-and-white PNG, with `grid` values 2, 4, 8, 16 (default 4).
-- `halftone`: clustered-dot black-and-white PNG, with `density` 1–100 (default 50) and `size` 2–32 pixels per dot cell (default 8). Higher density adds ink; size controls dot spacing. Dimensions stay unchanged.
+- `halftone`: circular-dot grayscale PNG with antialiased edges, with `density` 1–100 (default 50) and `size` 2–64 pixels between dot centers (default 24). Each dot uses its cell’s average luminance. Higher density adds ink; size controls dot spacing. Dimensions stay unchanged.
 
 These converters flatten transparency onto white and use the first frame of animated images.
-The web interface shows Windows XP **Bliss** beside a live settings preview.
+The web interface shows a **1600 × 1287** Windows XP **Bliss** reference beside a live settings preview. Click either image to inspect the full-resolution PNG. Previews load before replacing the last valid image, report loading/errors, and ignore stale requests. Preview sliders do not mutate saved WebDAV settings; converting applies the selected values.
 
 Browse `/convert/<tool>/settings/` in WebDAV:
 
@@ -24,8 +24,8 @@ curl -T photo.jpg https://het.aridlin.pl/convert/halftone/in/photo.jpg
 curl https://het.aridlin.pl/convert/halftone/out/photo_halftone.png -o photo_halftone.png
 ```
 
-The preview reference is Charles O’Rear’s **Bliss**, the Windows XP wallpaper, downloaded from
-[Wikipedia's reference image](https://en.wikipedia.org/wiki/File:Bliss_(Windows_XP).png).
+The preview reference is Charles O’Rear’s **Bliss**, the Windows XP wallpaper, derived from the 4510 × 3627 scan at
+[Internet Archive](https://archive.org/details/theoriginalfilesofsomewindowswallpapers/bliss%20600dpi.jpg), reduced to 1600 pixels wide for fast previews.
 It is a separate third-party image, not covered by the project's source-code license.
 
 # convertdav
